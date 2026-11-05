@@ -1,0 +1,218 @@
+export type ServiceKind =
+  | "ec2"
+  | "ebs"
+  | "rds"
+  | "s3"
+  | "nat"
+  | "alb"
+  | "dataTransfer";
+
+export type Category = "compute" | "database" | "storage" | "network";
+
+export type Currency = "USD" | "KRW";
+
+export type EbsVolumeType = "gp3" | "gp2" | "io1" | "io2" | "st1" | "sc1";
+export type RdsStorageType = "gp3" | "gp2" | "io1" | "io2";
+export type S3Class =
+  | "standard"
+  | "standardIA"
+  | "onezoneIA"
+  | "glacierIR"
+  | "glacierFlexible"
+  | "deepArchive";
+
+interface BaseResource {
+  id: string;
+  kind: ServiceKind;
+  regionId: string;
+  createdAt: number;
+}
+
+export interface Ec2Resource extends BaseResource {
+  kind: "ec2";
+  instanceType: string;
+  qty: number;
+  utilization: number;
+}
+
+export interface EbsResource extends BaseResource {
+  kind: "ebs";
+  volumeType: EbsVolumeType;
+  sizeGb: number;
+  iops: number;
+  throughput: number;
+  qty: number;
+}
+
+export interface RdsResource extends BaseResource {
+  kind: "rds";
+  engine: "postgres" | "mysql";
+  instanceType: string;
+  multiAz: boolean;
+  storageGb: number;
+  storageType: RdsStorageType;
+  iops: number;
+  qty: number;
+}
+
+export interface S3Resource extends BaseResource {
+  kind: "s3";
+  storageClass: S3Class;
+  storageGb: number;
+  putRequests: number;
+  getRequests: number;
+  retrievalGb: number;
+}
+
+export interface NatResource extends BaseResource {
+  kind: "nat";
+  qty: number;
+  hours: number;
+  dataGb: number;
+}
+
+export interface AlbResource extends BaseResource {
+  kind: "alb";
+  qty: number;
+  hours: number;
+  lcu: number;
+}
+
+export interface DataTransferResource extends BaseResource {
+  kind: "dataTransfer";
+  gbOut: number;
+}
+
+export type Resource =
+  | Ec2Resource
+  | EbsResource
+  | RdsResource
+  | S3Resource
+  | NatResource
+  | AlbResource
+  | DataTransferResource;
+
+export interface Rate {
+  price: number;
+  rateCode?: string;
+  key?: string;
+}
+
+export interface Ec2Rate extends Rate {
+  vcpu: number;
+  mem: number;
+  family: string;
+}
+
+export interface RdsInstanceRate {
+  single: number;
+  multi: number;
+  vcpu: number;
+  mem: number;
+  rateCode?: string;
+}
+
+export interface RdsStorageRate {
+  single: Rate | null;
+  multi: Rate | null;
+}
+
+export interface RdsEnginePricing {
+  instance: Record<string, RdsInstanceRate>;
+  storage: {
+    gp3: RdsStorageRate;
+    gp2: RdsStorageRate;
+    io1: RdsStorageRate;
+    io2: RdsStorageRate;
+    iops: RdsStorageRate;
+    gp3Iops: RdsStorageRate;
+    throughput: RdsStorageRate;
+    backup: Rate | null;
+  };
+}
+
+export interface S3ClassRate {
+  storage: Rate | null;
+  put: Rate | null;
+  get: Rate | null;
+  retrieval?: Rate | null;
+}
+
+export interface S3Pricing {
+  standard: {
+    tiers: (Rate | null)[];
+    put: Rate | null;
+    get: Rate | null;
+  };
+  standardIA: S3ClassRate;
+  onezoneIA: S3ClassRate;
+  glacierIR: S3ClassRate;
+  glacierFlexible: S3ClassRate;
+  deepArchive: S3ClassRate;
+}
+
+export interface RegionPricing {
+  id: string;
+  label: string;
+  awsName: string;
+  flag: string;
+  short: string;
+  ec2: Record<string, Ec2Rate>;
+  ebs: {
+    gp3: Rate | null;
+    gp2: Rate | null;
+    io1: Rate | null;
+    io2: Rate | null;
+    st1: Rate | null;
+    sc1: Rate | null;
+    standard: Rate | null;
+    snapshot: Rate | null;
+    gp3Iops: Rate | null;
+    gp3ThroughputPerMBps: Rate | null;
+    io1Iops: Rate | null;
+    io2IopsTier1: Rate | null;
+    io2IopsTier2: Rate | null;
+    io2IopsTier3: Rate | null;
+    freeIops: number;
+    freeThroughputMBps: number;
+  };
+  rds: Record<"postgres" | "mysql", RdsEnginePricing>;
+  s3: S3Pricing;
+  nat: { hourly: Rate | null; perGb: Rate | null };
+  alb: { hourly: Rate | null; lcu: Rate | null };
+  dataTransfer: { upToTb: number | null; price: number; rateCode?: string }[];
+}
+
+export interface PricingMeta {
+  generatedAt: string;
+  currency: string;
+  hoursPerMonth: number;
+  gbPerTb: number;
+  fxKrwPerUsd: number;
+  regions: { id: string; label: string; awsName: string; flag: string; short: string }[];
+  sources: Record<string, string>;
+  formulas: Record<string, string>;
+}
+
+export interface PricingData {
+  meta: PricingMeta;
+  regions: RegionPricing[];
+}
+
+export interface CostLine {
+  id: string;
+  kind: ServiceKind;
+  label: string;
+  regionId: string;
+  monthlyUsd: number;
+  category: Category;
+  detail: string;
+}
+
+export interface CostSummary {
+  lines: CostLine[];
+  monthlyUsd: number;
+  annualUsd: number;
+  byKind: Record<ServiceKind, number>;
+  byCategory: Record<Category, number>;
+}

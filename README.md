@@ -13,7 +13,8 @@
 - **AWS 공식 Pricing Calculator 실측 요율 연동**:
   - `ap-northeast-2 (서울)`을 포함한 8대 핵심 리전(`서울`, `도쿄`, `싱가포르`, `시드니`, `버지니아`, `오리건`, `프랑크푸르트`, `아일랜드`)의 최신 온디맨드 단가 데이터 내장
   - 일괄 리전 변경(Region Compare) 기능으로 1초 만에 리전 간 전체 아키텍처 비용 비교 지원
-- **11개 핵심 인프라 서비스 정밀 산출**:
+- **12개 핵심 인프라 서비스 정밀 산출**:
+  - **Amazon ECS (AWS Fargate)**: 서버리스 컨테이너 태스크(vCPU / Memory 규격), Arm64(Graviton 20% 할인) vs x86_64, Fargate Spot(최대 70% 할인), 20GB 초과 임시 스토리지(Ephemeral Storage), 태스크 수량 및 일일 가동 시간 정밀 계산
   - **Amazon EC2**: Graviton(`t4g`, `m6g`, `c7g`, `r7g`), Intel(`m6i`, `c6i`), GPU(`g4dn`, `g5`) 등 최신 인스턴스 패밀리 및 월간 가동률(%) 반영
   - **Amazon EBS**: gp3, io2 볼륨 스토리지 요금 및 프로비저닝 IOPS / Throughput 할증 정밀 계산
   - **Amazon RDS**: PostgreSQL / MySQL 엔진, Multi-AZ 구성, gp3 용량 구간별(400GB 기준) 기본 IOPS/처리량 무료 제공분 및 초과 할증 통합 계산
@@ -29,7 +30,7 @@
   - 온디맨드 정가 대비 1년·3년 Savings Plans / Reserved Instances 적용 시 예상 절감액 즉시 비교
 - **실측 기반 FinOps 인사이트 & 원클릭 최적화**:
   - x86 인스턴스를 동급 Graviton(Arm) 실제 단가로 비교 후 **원클릭 전환**
-  - ElastiCache Redis → Valkey(20% 할인), Lambda x86 → Arm64(20% 할인), 1년 약정 전환 원클릭 적용
+  - ECS Fargate Arm64 전환(20% 절감), Fargate Spot 전환(70% 절감), ElastiCache Redis → Valkey(20% 할인), Lambda x86 → Arm64(20% 할인), 1년 약정 전환 원클릭 적용
 - **리소스 별칭(Custom Label) & 환경 태그 (`PROD` / `STAGE` / `DEV`)**:
   - 카드별 용도 메모(예: `"결제 메인 DB"`, `"웹/API 서버"`) 및 환경별 필터링 지원
 - **URL 공유 링크 & 실시간 환율 연동 (USD / KRW)**:

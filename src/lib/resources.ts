@@ -71,6 +71,18 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
         workerInstanceType: "m6g.large",
         workerQty: 2,
       };
+    case "ecs":
+      return {
+        ...base,
+        kind,
+        arch: "arm64",
+        launchType: "fargate",
+        qty: 2,
+        hours: 730,
+        vcpu: 1,
+        memoryGb: 2,
+        ephemeralStorageGb: 20,
+      };
     case "cloudfront":
       return {
         ...base,
@@ -206,6 +218,20 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         resource.extendedSupport ? "확장 버전 지원" : "표준 지원",
         `워커 ${resource.workerInstanceType} × ${resource.workerQty}`,
       ];
+    case "ecs": {
+      const archText = resource.arch === "arm64" ? "Arm64(Graviton)" : "x86_64";
+      const spotText = resource.launchType === "fargateSpot" ? "Fargate Spot (70%↓)" : "Fargate";
+      const badges = [
+        spotText,
+        archText,
+        `${resource.vcpu} vCPU · ${resource.memoryGb} GiB`,
+        `${resource.qty}개 태스크`,
+      ];
+      if (resource.ephemeralStorageGb > 20) {
+        badges.push(`스토리지 ${resource.ephemeralStorageGb} GB`);
+      }
+      return badges;
+    }
     case "cloudfront":
       return [
         `엣지 ${formatNumber(resource.gbOut / 1024, 2)} TB`,
@@ -242,6 +268,8 @@ export function resourceIconLabel(resource: Resource): string {
       return "Lambda";
     case "eks":
       return "EKS";
+    case "ecs":
+      return "Fargate";
     case "cloudfront":
       return "CDN";
     case "nat":

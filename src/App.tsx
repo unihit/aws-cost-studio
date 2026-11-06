@@ -213,6 +213,30 @@ export default function App() {
           actionLabel: "되돌리기",
           onAction: () => setResources(snapshot),
         });
+      } else if (action.type === "switchEcsArm") {
+        setResources((current) =>
+          current.map((r) =>
+            r.kind === "ecs" && r.arch === "x86" ? { ...r, arch: "arm64" } : r,
+          ),
+        );
+        pushToast("ECS Fargate 태스크를 Arm64(Graviton)로 전환했습니다 (20% 할인).", {
+          tone: "success",
+          actionLabel: "되돌리기",
+          onAction: () => setResources(snapshot),
+        });
+      } else if (action.type === "switchEcsSpot") {
+        setResources((current) =>
+          current.map((r) =>
+            r.kind === "ecs" && (r.env === "dev" || r.env === "stage")
+              ? { ...r, launchType: "fargateSpot" }
+              : r,
+          ),
+        );
+        pushToast("비프로덕션 ECS 태스크를 Fargate Spot으로 전환했습니다 (최대 70% 할인).", {
+          tone: "success",
+          actionLabel: "되돌리기",
+          onAction: () => setResources(snapshot),
+        });
       }
     },
     [resources, purchaseOption, setResources, setPurchaseOption, pushToast],

@@ -30,6 +30,7 @@ export const ELASTICACHE_NODES: Record<
 
 const EMPTY_KINDS = (): Record<ServiceKind, number> => ({
   ec2: 0,
+  ecs: 0,
   ebs: 0,
   rds: 0,
   elasticache: 0,
@@ -59,6 +60,27 @@ export function getComputeMultiplier(option: PurchaseOption = "onDemand", kind: 
     return option === "sp1yr" ? 0.73 : 0.54;
   }
   return option === "sp1yr" ? 0.72 : 0.52;
+}
+
+export function calculateFargateTaskHourly(
+  regionId: string,
+  arch: "arm64" | "x86",
+  vcpu: number,
+  memoryGb: number,
+  launchType: "fargate" | "fargateSpot",
+  purchaseOption: PurchaseOption = "onDemand",
+): number {
+  const factor = getRegionalFactor(regionId);
+  const baseVcpu = arch === "arm64" ? 0.032384 : 0.04048;
+  const baseMem = arch === "arm64" ? 0.003556 : 0.004445;
+  let hourly = (vcpu * baseVcpu + memoryGb * baseMem) * factor;
+  if (launchType === "fargateSpot") {
+    hourly *= 0.3;
+  } else {
+    const mult = getComputeMultiplier(purchaseOption, "ec2");
+    hourly *= mult;
+  }
+  return hourly;
 }
 
 export function getRegionalFactor(regionId: string): number {
@@ -252,6 +274,22 @@ export function calculateResource(
       const apiGwCost = (resource.apiGatewayRequests / 1_000_000) * apiGwRatePerMillion;
       return requestCost + computeCost + apiGwCost;
     }
+    case "ecs": {
+      const taskHourly = calculateFargateTaskHourly(
+        resource.regionId,
+        resource.arch,
+        resource.vcpu,
+        resource.memoryGb,
+        resource.launchType,
+        purchaseOption,
+      );
+      const computeCost = taskHourly * resource.hours * resource.qty;
+      const extraStorageGb = Math.max(0, resource.ephemeralStorageGb - 20);
+      const factor = getRegionalFactor(resource.regionId);
+      const storageCost =
+        extraStorageGb * 0.08 * factor * (resource.hours / HOURS_PER_MONTH) * resource.qty;
+      return computeCost + storageCost;
+    }
     case "eks": {
       const controlPlaneRate = resource.extendedSupport ? 0.6 : 0.1;
       const controlPlaneCost = resource.clusters * controlPlaneRate * HOURS_PER_MONTH;
@@ -381,6 +419,20 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
     }
     case "eks":
       return `클러스터 ${resource.clusters}개${resource.extendedSupport ? "(확장 지원)" : ""} · 워커 ${resource.workerInstanceType} × ${resource.workerQty}`;
+    case "ecs": {
+      const archLabel = resource.arch === "arm64" ? "Arm64(Graviton)" : "x86_64";
+      const spotLabel = resource.launchType === "fargateSpot" ? "Fargate Spot" : "Fargate";
+      const parts = [
+        spotLabel,
+        archLabel,
+        `${resource.vcpu} vCPU · ${resource.memoryGb} GiB`,
+        `태스크 ${resource.qty}개`,
+      ];
+      if (resource.ephemeralStorageGb > 20) {
+        parts.push(`스토리지 ${resource.ephemeralStorageGb} GB`);
+      }
+      return parts.join(" · ");
+    }
     case "cloudfront":
       return `엣지 전송 ${formatNumber(resource.gbOut / 1024, 2)} TB · HTTPS ${formatCompact(resource.httpsRequests)}`;
     case "nat":

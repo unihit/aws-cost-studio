@@ -2,6 +2,7 @@ import {
   ArrowLeftRight,
   Boxes,
   Cloud,
+  Container,
   Cpu,
   Database,
   Globe,
@@ -96,6 +97,16 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
     accent: "text-blue-500",
     tile: "bg-blue-500/10 text-blue-500 ring-blue-500/20",
   },
+  ecs: {
+    kind: "ecs",
+    title: "Amazon ECS (Fargate)",
+    eyebrow: "Serverless container",
+    description: "AWS Fargate 태스크(vCPU·메모리), Arm64(Graviton), Fargate Spot 요율을 계산합니다.",
+    icon: Container,
+    category: "compute",
+    accent: "text-pink-500",
+    tile: "bg-pink-500/10 text-pink-500 ring-pink-500/20",
+  },
   cloudfront: {
     kind: "cloudfront",
     title: "Amazon CloudFront",
@@ -140,6 +151,7 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
 
 export const SERVICE_ORDER: ServiceKind[] = [
   "ec2",
+  "ecs",
   "rds",
   "elasticache",
   "s3",
@@ -167,6 +179,7 @@ export const SERVICE_COLORS: Record<ServiceKind, string> = {
   s3: "#10b981",
   lambda: "#f97316",
   eks: "#3b82f6",
+  ecs: "#ec4899",
   cloudfront: "#14b8a6",
   nat: "#8b5cf6",
   alb: "#f43f5e",

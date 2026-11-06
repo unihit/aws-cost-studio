@@ -17,6 +17,7 @@ import type {
   Ec2Resource,
   EksResource,
   ElastiCacheResource,
+  EcsResource,
   EnvTag,
   LambdaResource,
   PricingData,
@@ -27,6 +28,7 @@ import type {
   ServiceKind,
 } from "../types";
 import {
+  calculateFargateTaskHourly,
   calculateResource,
   ELASTICACHE_NODES,
   getElastiCacheHourlyRate,
@@ -200,7 +202,7 @@ export function ServiceDrawer({
                   서비스 카탈로그
                 </h2>
                 <p className="text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-                  11 services · real rates
+                  12 services · real rates
                 </p>
               </div>
             </>
@@ -231,6 +233,9 @@ export function ServiceDrawer({
 
               {draft.kind === "ec2" && (
                 <Ec2Fields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "ecs" && (
+                <EcsFields resource={draft} purchaseOption={purchaseOption} onPatch={patch} />
               )}
               {draft.kind === "ebs" && (
                 <EbsFields resource={draft} pricing={pricing} onPatch={patch} />
@@ -1220,13 +1225,151 @@ function EksFields({
 
       <RangeField
         label="워커 노드 총 수량"
-        hint="Fargate만 사용하는 경우 0으로 설정할 수 있습니다"
+        hint="자체 관리형 또는 EKS 관리형 EC2 노드 수량"
         value={resource.workerQty}
         onChange={(workerQty) => onPatch({ workerQty })}
         min={0}
         max={200}
         step={1}
         unit="대"
+      />
+    </>
+  );
+}
+
+/* ---------------------------------- ECS ---------------------------------- */
+
+const ECS_VCPU_OPTIONS = [0.25, 0.5, 1, 2, 4, 8, 16];
+
+const ECS_MEM_OPTIONS: Record<number, number[]> = {
+  0.25: [0.5, 1, 2],
+  0.5: [1, 2, 3, 4],
+  1: [2, 3, 4, 5, 6, 7, 8],
+  2: [4, 6, 8, 10, 12, 14, 16],
+  4: [8, 12, 16, 20, 24, 28, 30],
+  8: [16, 24, 32, 40, 48, 56, 60],
+  16: [32, 48, 64, 80, 96, 112, 120],
+};
+
+function EcsFields({
+  resource,
+  purchaseOption,
+  onPatch,
+}: {
+  resource: EcsResource;
+  purchaseOption: PurchaseOption;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const taskHourly = calculateFargateTaskHourly(
+    resource.regionId,
+    resource.arch,
+    resource.vcpu,
+    resource.memoryGb,
+    resource.launchType,
+    purchaseOption,
+  );
+
+  const availableMems = ECS_MEM_OPTIONS[resource.vcpu] ?? [resource.memoryGb];
+
+  return (
+    <>
+      <div>
+        <SectionLabel hint="Fargate Spot은 최대 70% 할인">실행 모델 (Launch Type)</SectionLabel>
+        <Segmented
+          ariaLabel="ECS Fargate 모델"
+          value={resource.launchType}
+          onChange={(launchType) => onPatch({ launchType })}
+          options={[
+            { value: "fargate", label: "Fargate (기본)" },
+            { value: "fargateSpot", label: "Fargate Spot (최대 70%↓)" },
+          ]}
+        />
+      </div>
+
+      <div>
+        <SectionLabel hint="Arm64는 vCPU·메모리 20% 저렴">아키텍처</SectionLabel>
+        <Segmented
+          ariaLabel="Fargate 아키텍처"
+          value={resource.arch}
+          onChange={(arch) => onPatch({ arch })}
+          options={[
+            { value: "arm64", label: "Arm64 (Graviton · 20%↓)" },
+            { value: "x86", label: "x86_64" },
+          ]}
+        />
+      </div>
+
+      <div>
+        <SectionLabel hint="태스크당 할당">vCPU</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {ECS_VCPU_OPTIONS.map((v) => (
+            <Chip
+              key={v}
+              active={resource.vcpu === v}
+              onClick={() => {
+                const mems = ECS_MEM_OPTIONS[v] ?? [1];
+                const nextMem = mems.includes(resource.memoryGb) ? resource.memoryGb : mems[0];
+                onPatch({ vcpu: v, memoryGb: nextMem });
+              }}
+            >
+              {v} vCPU
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <SectionLabel hint={`선택한 ${resource.vcpu} vCPU 기준 지원 규격`}>메모리 (Memory)</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {availableMems.map((m) => (
+            <Chip
+              key={m}
+              active={resource.memoryGb === m}
+              onClick={() => onPatch({ memoryGb: m })}
+            >
+              {m} GiB
+            </Chip>
+          ))}
+        </div>
+        <p className="mt-2 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
+          태스크당 약 {formatUsd(taskHourly, 4)}/hr ·{" "}
+          {resource.launchType === "fargateSpot" ? "Spot 70% 할인 반영됨" : "온디맨드/약정 반영됨"}
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">태스크(Task) 수량</p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">동시에 실행되는 Fargate 컨테이너 개수</p>
+        </div>
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={999}
+          onChange={(qty) => onPatch({ qty })}
+          label="ECS 태스크 수량"
+        />
+      </div>
+
+      <RangeField
+        label="월평균 가동 시간"
+        hint="월 최대 744시간 (기본 730시간 = 상시 가동)"
+        value={resource.hours}
+        onChange={(hours) => onPatch({ hours })}
+        min={1}
+        max={744}
+        unit="h"
+      />
+
+      <RangeField
+        label="임시 스토리지 (Ephemeral Storage)"
+        hint="기본 20 GB 무료 포함 · 초과분만 $0.08/GB-mo 과금"
+        value={resource.ephemeralStorageGb}
+        onChange={(ephemeralStorageGb) => onPatch({ ephemeralStorageGb })}
+        min={20}
+        max={200}
+        step={5}
+        unit="GB"
       />
     </>
   );

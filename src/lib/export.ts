@@ -19,6 +19,7 @@ const VALID_KINDS: ServiceKind[] = [
   "s3",
   "lambda",
   "eks",
+  "ecs",
   "cloudfront",
   "nat",
   "alb",
@@ -237,6 +238,20 @@ export function parseImportedResources(raw: unknown): Resource[] {
             extendedSupport: Boolean(item.extendedSupport),
             workerInstanceType: str(item.workerInstanceType, "m6g.large"),
             workerQty: Math.max(0, num(item.workerQty, 2)),
+          };
+        case "ecs":
+          return {
+            ...b,
+            kind,
+            arch: item.arch === "x86" ? "x86" : "arm64",
+            launchType: item.launchType === "fargateSpot" ? "fargateSpot" : "fargate",
+            qty: Math.max(1, num(item.qty, 1)),
+            hours: Math.min(744, Math.max(1, num(item.hours, 730))),
+            vcpu: [0.25, 0.5, 1, 2, 4, 8, 16].includes(num(item.vcpu, 1))
+              ? num(item.vcpu, 1)
+              : 1,
+            memoryGb: Math.max(0.5, Math.min(120, num(item.memoryGb, 2))),
+            ephemeralStorageGb: Math.max(20, Math.min(200, num(item.ephemeralStorageGb, 20))),
           };
         case "cloudfront":
           return {

@@ -12,7 +12,9 @@ export type InsightAction =
   | { type: "migrateGraviton" }
   | { type: "switchPurchaseOption"; option: PurchaseOption }
   | { type: "switchValkey" }
-  | { type: "switchLambdaArm" };
+  | { type: "switchLambdaArm" }
+  | { type: "switchEcsArm" }
+  | { type: "switchEcsSpot" };
 
 export interface Insight {
   id: string;
@@ -59,6 +61,9 @@ export function applyGravitonMigration(
         count++;
         return { ...resource, workerInstanceType: target };
       }
+    } else if (resource.kind === "ecs" && resource.arch === "x86") {
+      count++;
+      return { ...resource, arch: "arm64" };
     }
     return resource;
   });
@@ -156,6 +161,57 @@ export function buildInsights(
         tone: "emerald",
         actionLabel: "Arm64로 전환",
         action: { type: "switchLambdaArm" },
+      });
+    }
+  }
+
+  // 5. ECS Fargate x86 -> Arm64 (20% savings)
+  const x86Ecs = resources.filter(
+    (r): r is Extract<Resource, { kind: "ecs" }> => r.kind === "ecs" && r.arch === "x86",
+  );
+  if (x86Ecs.length > 0) {
+    const currentCost = sum(x86Ecs, pricing, purchaseOption);
+    const armCost = sum(
+      x86Ecs.map((r) => ({ ...r, arch: "arm64" as const })),
+      pricing,
+      purchaseOption,
+    );
+    const diff = currentCost - armCost;
+    if (diff > 0.1) {
+      insights.push({
+        id: "ecs-fargate-arm64",
+        title: "ECS Fargate Arm64(Graviton) 전환 시 20% 절감",
+        body: "Fargate 태스크를 Arm64 기반 컨테이너 이미지로 빌드하면 vCPU와 메모리 단가가 즉시 20% 할인됩니다.",
+        savingsUsd: diff,
+        tone: "emerald",
+        actionLabel: "Fargate Arm64로 전환",
+        action: { type: "switchEcsArm" },
+      });
+    }
+  }
+
+  // 6. ECS Fargate Spot on dev/stage
+  const standardEcsDev = resources.filter(
+    (r): r is Extract<Resource, { kind: "ecs" }> =>
+      r.kind === "ecs" && r.launchType === "fargate" && (r.env === "dev" || r.env === "stage"),
+  );
+  if (standardEcsDev.length > 0) {
+    const currentCost = sum(standardEcsDev, pricing, purchaseOption);
+    const spotCost = sum(
+      standardEcsDev.map((r) => ({ ...r, launchType: "fargateSpot" as const })),
+      pricing,
+      purchaseOption,
+    );
+    const diff = currentCost - spotCost;
+    if (diff > 0.5) {
+      insights.push({
+        id: "ecs-fargate-spot",
+        title: `${standardEcsDev.length}개 비프로덕션 ECS 태스크 Fargate Spot 전환`,
+        body: "개발·스테이징 환경이나 중단 가능한 배치 작업에 Fargate Spot을 적용하면 최대 70%까지 절감할 수 있습니다.",
+        savingsUsd: diff,
+        tone: "indigo",
+        actionLabel: "Fargate Spot 적용",
+        action: { type: "switchEcsSpot" },
       });
     }
   }

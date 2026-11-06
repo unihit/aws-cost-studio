@@ -9,7 +9,8 @@ export type ServiceKind =
   | "elasticache"
   | "cloudfront"
   | "lambda"
-  | "eks";
+  | "eks"
+  | "ecs";
 
 export type Category = "compute" | "database" | "storage" | "network";
 
@@ -127,6 +128,17 @@ export interface EksResource extends BaseResource {
   workerQty: number;
 }
 
+export interface EcsResource extends BaseResource {
+  kind: "ecs";
+  arch: "arm64" | "x86";
+  launchType: "fargate" | "fargateSpot";
+  qty: number;
+  hours: number;
+  vcpu: number;
+  memoryGb: number;
+  ephemeralStorageGb: number;
+}
+
 export type Resource =
   | Ec2Resource
   | EbsResource
@@ -138,7 +150,8 @@ export type Resource =
   | ElastiCacheResource
   | CloudFrontResource
   | LambdaResource
-  | EksResource;
+  | EksResource
+  | EcsResource;
 
 export interface Rate {
   price: number;

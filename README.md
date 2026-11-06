@@ -24,7 +24,7 @@
   - **Amazon EKS**: 클러스터 컨트롤 플레인 고정비($0.10/h) · 확장 버전 지원 · 관리형 워커 노드 통합 산출
   - **Amazon CloudFront**: 매월 1TB 무료 아웃바운드 및 1,000만 건 무료 HTTPS 요청 티어가 반영된 글로벌 엣지 CDN 비용
   - **NAT Gateway**: 인스턴스 시간당 요금 + 처리 데이터(GB) 비용
-  - **Application Load Balancer (ALB)**: 기본 가동 시간 요금 + LCU(Load Balancer Capacity Unit) 사용량
+  - **Elastic Load Balancing (ALB / NLB)**: L7 Application Load Balancer(LCU) 및 초저지연 L4 Network Load Balancer(NLCU · 25% 저렴) 시간당 기본 요금과 용량 단위 통합 계산
   - **Data Transfer**: 인터넷 아웃바운드 구간별(10TB, 40TB, 100TB) 티어링 요율 자동 적용
 - **약정 할인 모델 (On-Demand / 1년 SP·RI / 3년 SP·RI) 토글**:
   - 온디맨드 정가 대비 1년·3년 Savings Plans / Reserved Instances 적용 시 예상 절감액 즉시 비교

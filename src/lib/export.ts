@@ -272,6 +272,7 @@ export function parseImportedResources(raw: unknown): Resource[] {
           return {
             ...b,
             kind,
+            lbType: item.lbType === "nlb" ? "nlb" : "alb",
             qty: Math.max(1, num(item.qty, 1)),
             hours: Math.min(744, Math.max(1, num(item.hours, 730))),
             lcu: Math.max(0, num(item.lcu, 1)),

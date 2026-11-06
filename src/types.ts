@@ -83,8 +83,11 @@ export interface NatResource extends BaseResource {
   dataGb: number;
 }
 
+export type LoadBalancerType = "alb" | "nlb";
+
 export interface AlbResource extends BaseResource {
   kind: "alb";
+  lbType?: LoadBalancerType;
   qty: number;
   hours: number;
   lcu: number;

@@ -93,7 +93,7 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
     case "nat":
       return { ...base, kind, qty: 1, hours: 730, dataGb: 100 };
     case "alb":
-      return { ...base, kind, qty: 1, hours: 730, lcu: 1 };
+      return { ...base, kind, lbType: "alb", qty: 1, hours: 730, lcu: 1 };
     case "dataTransfer":
       return { ...base, kind, gbOut: 1024 };
   }
@@ -243,8 +243,14 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         `${formatNumber(resource.hours)}시간`,
         `${formatNumber(resource.dataGb)} GB 처리`,
       ];
-    case "alb":
-      return [`${formatNumber(resource.hours)}시간`, `${formatNumber(resource.lcu)} LCU`];
+    case "alb": {
+      const isNlb = resource.lbType === "nlb";
+      return [
+        isNlb ? "NLB (L4 Network)" : "ALB (L7 Application)",
+        `${formatNumber(resource.hours)}시간`,
+        `${formatNumber(resource.lcu)} ${isNlb ? "NLCU" : "LCU"}`,
+      ];
+    }
     case "dataTransfer":
       return [`${formatNumber(resource.gbOut / 1024, 2)} TB 아웃바운드`];
     default:
@@ -275,7 +281,7 @@ export function resourceIconLabel(resource: Resource): string {
     case "nat":
       return "NAT";
     case "alb":
-      return "ALB";
+      return resource.lbType === "nlb" ? "NLB" : "ALB";
     case "dataTransfer":
       return "OUT";
     default:

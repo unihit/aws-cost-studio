@@ -255,7 +255,9 @@ export function ServiceDrawer({
               )}
               {draft.kind === "cloudfront" && <CloudFrontFields resource={draft} onPatch={patch} />}
               {draft.kind === "nat" && <NatFields resource={draft} onPatch={patch} />}
-              {draft.kind === "alb" && <AlbFields resource={draft} onPatch={patch} />}
+              {draft.kind === "alb" && (
+                <AlbFields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
               {draft.kind === "dataTransfer" && (
                 <TransferFields resource={draft} pricing={pricing} onPatch={patch} />
               )}
@@ -1464,24 +1466,59 @@ function NatFields({
   );
 }
 
-/* ---------------------------------- ALB ---------------------------------- */
+/* ---------------------------------- ELB (ALB / NLB) ---------------------------------- */
 
 function AlbFields({
   resource,
+  pricing,
   onPatch,
 }: {
   resource: Extract<Resource, { kind: "alb" }>;
+  pricing: PricingData;
   onPatch: (values: Record<string, unknown>) => void;
 }) {
+  const region = getRegion(pricing, resource.regionId);
+  const isNlb = resource.lbType === "nlb";
+  const hourly = region.alb.hourly?.price ?? 0.025;
+  const cuRate = isNlb
+    ? (region.alb.lcu?.price ?? 0.008) * 0.75
+    : (region.alb.lcu?.price ?? 0.008);
+  const cuName = isNlb ? "NLCU" : "LCU";
+
   return (
     <>
+      <div>
+        <SectionLabel
+          hint={
+            isNlb
+              ? "초저지연 L4 트래픽 (TCP/UDP/TLS · 고정 IP)"
+              : "HTTP/HTTPS L7 고성능 라우팅 · 헤더/경로 분기"
+          }
+        >
+          로드 밸런서 유형
+        </SectionLabel>
+        <Segmented
+          ariaLabel="로드 밸런서 종류"
+          value={resource.lbType ?? "alb"}
+          onChange={(lbType) => onPatch({ lbType })}
+          options={[
+            { value: "alb", label: "Application Load Balancer (ALB · L7)" },
+            { value: "nlb", label: "Network Load Balancer (NLB · L4 · 25%↓)" },
+          ]}
+        />
+        <p className="mt-2 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
+          기본 요금: {formatUsd(hourly, 4)}/hr · {cuName} 요율: {formatUsd(cuRate, 4)}/{cuName}-hr
+          {isNlb && " (ALB LCU 대비 약 25% 저렴)"}
+        </p>
+      </div>
+
       <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
         <div>
           <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
             로드 밸런서 수량
           </p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
-            ALB는 시간당 요금이 동일하게 적용됩니다
+            {isNlb ? "NLB 인스턴스 시간당 기본 요금 반영" : "ALB 인스턴스 시간당 기본 요금 반영"}
           </p>
         </div>
         <Stepper
@@ -1489,13 +1526,13 @@ function AlbFields({
           min={1}
           max={99}
           onChange={(qty) => onPatch({ qty })}
-          label="ALB 수량"
+          label={`${isNlb ? "NLB" : "ALB"} 수량`}
         />
       </div>
 
       <RangeField
-        label="운영 시간"
-        hint="월 최대 744시간"
+        label="월평균 가동 시간"
+        hint="월 최대 744시간 (기본 730시간 = 상시 가동)"
         value={resource.hours}
         onChange={(hours) => onPatch({ hours })}
         min={1}
@@ -1504,14 +1541,18 @@ function AlbFields({
       />
 
       <RangeField
-        label="평균 LCU"
-        hint="시간당 평균 Load Balancer Capacity Unit"
+        label={isNlb ? "평균 NLCU (Network LCU)" : "평균 LCU (Load Balancer Capacity Unit)"}
+        hint={
+          isNlb
+            ? "TCP 신규(800개/s), 활성(10만개), 대역폭(1GB/h) 중 최대치 소모"
+            : "새 연결(25개/s), 활성(3,000개), 대역폭(1GB/h), 규칙(1,000개/s) 중 최대치 소모"
+        }
         value={resource.lcu}
         onChange={(lcu) => onPatch({ lcu })}
         min={0}
         max={100}
         step={0.5}
-        unit="LCU"
+        unit={cuName}
         format={(value) => formatNumber(value, 1)}
       />
     </>

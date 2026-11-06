@@ -317,8 +317,14 @@ export function calculateResource(
     }
     case "alb": {
       const hourly = region.alb.hourly?.price ?? 0;
-      const lcu = region.alb.lcu?.price ?? 0;
-      return resource.qty * resource.hours * hourly + resource.qty * resource.lcu * resource.hours * lcu;
+      const isNlb = resource.lbType === "nlb";
+      const cuRate = isNlb
+        ? (region.alb.lcu?.price ?? 0.008) * 0.75
+        : (region.alb.lcu?.price ?? 0.008);
+      return (
+        resource.qty * resource.hours * hourly +
+        resource.qty * resource.lcu * resource.hours * cuRate
+      );
     }
     case "dataTransfer":
       return dataTransferMonthly(region, resource.gbOut);
@@ -437,8 +443,12 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
       return `엣지 전송 ${formatNumber(resource.gbOut / 1024, 2)} TB · HTTPS ${formatCompact(resource.httpsRequests)}`;
     case "nat":
       return `${resource.qty}개 · ${formatNumber(resource.hours)}h · ${formatNumber(resource.dataGb)} GB 처리`;
-    case "alb":
-      return `${resource.qty}개 · ${formatNumber(resource.hours)}h · LCU ${resource.lcu}`;
+    case "alb": {
+      const isNlb = resource.lbType === "nlb";
+      const typeLabel = isNlb ? "Network (NLB)" : "Application (ALB)";
+      const cuLabel = isNlb ? "NLCU" : "LCU";
+      return `${typeLabel} · ${resource.qty}개 · ${formatNumber(resource.hours)}h · ${cuLabel} ${resource.lcu}`;
+    }
     case "dataTransfer":
       return `${formatNumber(resource.gbOut / 1024, 1)} TB /월 아웃바운드`;
     default:

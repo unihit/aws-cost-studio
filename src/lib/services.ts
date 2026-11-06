@@ -129,9 +129,9 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
   },
   alb: {
     kind: "alb",
-    title: "Application Load Balancer",
-    eyebrow: "Networking",
-    description: "ALB 시간당 요금과 LCU 사용량을 즉시 반영합니다.",
+    title: "Elastic Load Balancing",
+    eyebrow: "Networking (ALB / NLB)",
+    description: "Application Load Balancer(L7) 및 고성능 Network Load Balancer(L4) 요금을 통합 계산합니다.",
     icon: Network,
     category: "network",
     accent: "text-rose-500",

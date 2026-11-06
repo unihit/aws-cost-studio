@@ -47,7 +47,7 @@ export function EmptyState({ onAdd, onPreset }: EmptyStateProps) {
         </div>
 
         <p className="mt-4 font-mono text-[10px] tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-          EC2 · RDS · S3 · EBS · NAT · ALB · Data Transfer
+          EC2 · ECS(Fargate) · EKS · RDS · ElastiCache · S3 · Lambda · CloudFront · NAT · ELB(ALB/NLB)
         </p>
       </div>
     </div>

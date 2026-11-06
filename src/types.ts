@@ -5,11 +5,19 @@ export type ServiceKind =
   | "s3"
   | "nat"
   | "alb"
-  | "dataTransfer";
+  | "dataTransfer"
+  | "elasticache"
+  | "cloudfront"
+  | "lambda"
+  | "eks";
 
 export type Category = "compute" | "database" | "storage" | "network";
 
 export type Currency = "USD" | "KRW";
+
+export type PurchaseOption = "onDemand" | "sp1yr" | "sp3yr";
+
+export type EnvTag = "prod" | "stage" | "dev";
 
 export type EbsVolumeType = "gp3" | "gp2" | "io1" | "io2" | "st1" | "sc1";
 export type RdsStorageType = "gp3" | "gp2" | "io1" | "io2";
@@ -21,11 +29,13 @@ export type S3Class =
   | "glacierFlexible"
   | "deepArchive";
 
-interface BaseResource {
+export interface BaseResource {
   id: string;
   kind: ServiceKind;
   regionId: string;
   createdAt: number;
+  label?: string;
+  env?: EnvTag;
 }
 
 export interface Ec2Resource extends BaseResource {
@@ -52,6 +62,7 @@ export interface RdsResource extends BaseResource {
   storageGb: number;
   storageType: RdsStorageType;
   iops: number;
+  throughput?: number;
   qty: number;
 }
 
@@ -83,6 +94,39 @@ export interface DataTransferResource extends BaseResource {
   gbOut: number;
 }
 
+export interface ElastiCacheResource extends BaseResource {
+  kind: "elasticache";
+  engine: "valkey" | "redis";
+  nodeType: string;
+  qty: number;
+  replicas: number;
+  backupGb: number;
+}
+
+export interface CloudFrontResource extends BaseResource {
+  kind: "cloudfront";
+  gbOut: number;
+  httpsRequests: number;
+}
+
+export interface LambdaResource extends BaseResource {
+  kind: "lambda";
+  arch: "arm64" | "x86";
+  memoryMb: number;
+  durationMs: number;
+  invocations: number;
+  includeFreeTier: boolean;
+  apiGatewayRequests: number;
+}
+
+export interface EksResource extends BaseResource {
+  kind: "eks";
+  clusters: number;
+  extendedSupport: boolean;
+  workerInstanceType: string;
+  workerQty: number;
+}
+
 export type Resource =
   | Ec2Resource
   | EbsResource
@@ -90,7 +134,11 @@ export type Resource =
   | S3Resource
   | NatResource
   | AlbResource
-  | DataTransferResource;
+  | DataTransferResource
+  | ElastiCacheResource
+  | CloudFrontResource
+  | LambdaResource
+  | EksResource;
 
 export interface Rate {
   price: number;
@@ -203,6 +251,8 @@ export interface CostLine {
   id: string;
   kind: ServiceKind;
   label: string;
+  customLabel?: string;
+  env?: EnvTag;
   regionId: string;
   monthlyUsd: number;
   category: Category;
@@ -213,6 +263,7 @@ export interface CostSummary {
   lines: CostLine[];
   monthlyUsd: number;
   annualUsd: number;
+  onDemandMonthlyUsd: number;
   byKind: Record<ServiceKind, number>;
   byCategory: Record<Category, number>;
 }

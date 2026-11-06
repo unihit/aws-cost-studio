@@ -3,7 +3,7 @@ import type { Currency, PricingData, Resource } from "../types";
 import { getRegion } from "../lib/calc";
 import { formatMoney, formatUsd } from "../lib/format";
 import { hasQty, resourceBadges } from "../lib/resources";
-import { SERVICES } from "../lib/services";
+import { ENV_META, SERVICES } from "../lib/services";
 import { cn, Stepper } from "./Primitives";
 
 interface ResourceCardProps {
@@ -33,6 +33,7 @@ export function ResourceCard({
   const Icon = meta.icon;
   const region = getRegion(pricing, resource.regionId);
   const badges = resourceBadges(resource, pricing).slice(0, 5);
+  const envMeta = resource.env ? ENV_META[resource.env] : null;
 
   return (
     <article className="group relative flex animate-scale-in flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-card transition duration-300 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lift dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none dark:hover:border-white/[0.16]">
@@ -42,23 +43,33 @@ export function ResourceCard({
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <h3 className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
-              {meta.title}
+              {resource.label || meta.title}
             </h3>
+            {envMeta && (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full border px-1.5 py-px text-[9px] font-bold tracking-wider",
+                  envMeta.badgeClass,
+                )}
+              >
+                {envMeta.label}
+              </span>
+            )}
             <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-1.5 py-px text-[9px] font-bold tracking-wide text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
               {region.flag} {region.label}
             </span>
           </div>
-          <p className="mt-0.5 text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-            {meta.eyebrow}
+          <p className="mt-0.5 truncate text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
+            {resource.label ? `${meta.title} · ${meta.eyebrow}` : meta.eyebrow}
           </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5 opacity-60 transition focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
           <button
             type="button"
-            aria-label={`${meta.title} 수정`}
+            aria-label={`${resource.label || meta.title} 수정`}
             title="수정"
             onClick={() => onEdit(resource)}
             className="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/10 dark:hover:text-white"
@@ -67,7 +78,7 @@ export function ResourceCard({
           </button>
           <button
             type="button"
-            aria-label={`${meta.title} 복제`}
+            aria-label={`${resource.label || meta.title} 복제`}
             title="복제"
             onClick={() => onDuplicate(resource)}
             className="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/10 dark:hover:text-white"
@@ -76,7 +87,7 @@ export function ResourceCard({
           </button>
           <button
             type="button"
-            aria-label={`${meta.title} 삭제`}
+            aria-label={`${resource.label || meta.title} 삭제`}
             title="삭제"
             onClick={() => onDelete(resource)}
             className="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"

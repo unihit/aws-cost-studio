@@ -7,23 +7,36 @@ import {
   MapPin,
   Plus,
   Search,
+  Tag,
   X,
 } from "lucide-react";
 import type {
+  CloudFrontResource,
   Currency,
   EbsResource,
   Ec2Resource,
+  EksResource,
+  ElastiCacheResource,
+  EnvTag,
+  LambdaResource,
   PricingData,
+  PurchaseOption,
   RdsResource,
   Resource,
   S3Resource,
   ServiceKind,
 } from "../types";
-import { calculateResource, getRegion } from "../lib/calc";
+import {
+  calculateResource,
+  ELASTICACHE_NODES,
+  getElastiCacheHourlyRate,
+  getRegion,
+  rdsGp3FreeBaseline,
+} from "../lib/calc";
 import { formatMoney, formatNumber, formatUsd } from "../lib/format";
 import { createDefaultResource } from "../lib/resources";
-import { SERVICE_ORDER, SERVICES } from "../lib/services";
-import { Chip, RangeField, NumberField, Segmented, Stepper, Toggle, cn } from "./Primitives";
+import { ENV_META, SERVICE_ORDER, SERVICES } from "../lib/services";
+import { Chip, NumberField, RangeField, Segmented, Stepper, Toggle, cn } from "./Primitives";
 
 interface ServiceDrawerProps {
   open: boolean;
@@ -31,6 +44,7 @@ interface ServiceDrawerProps {
   editing: Resource | null;
   pricing: PricingData;
   defaultRegionId: string;
+  purchaseOption: PurchaseOption;
   currency: Currency;
   fx: number;
   onClose: () => void;
@@ -43,6 +57,7 @@ export function ServiceDrawer({
   editing,
   pricing,
   defaultRegionId,
+  purchaseOption,
   currency,
   fx,
   onClose,
@@ -87,10 +102,10 @@ export function ServiceDrawer({
   const startCosts = useMemo(() => {
     const entries = SERVICE_ORDER.map((service) => [
       service,
-      calculateResource(createDefaultResource(service, defaultRegionId), pricing),
+      calculateResource(createDefaultResource(service, defaultRegionId), pricing, purchaseOption),
     ]);
     return Object.fromEntries(entries) as Record<ServiceKind, number>;
-  }, [pricing, defaultRegionId]);
+  }, [pricing, defaultRegionId, purchaseOption]);
 
   const filteredServices = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -120,6 +135,9 @@ export function ServiceDrawer({
       if (next.kind === "rds" && !region.rds[next.engine].instance[next.instanceType]) {
         next = { ...next, instanceType: Object.keys(region.rds[next.engine].instance)[0] };
       }
+      if (next.kind === "eks" && !region.ec2[next.workerInstanceType]) {
+        next = { ...next, workerInstanceType: Object.keys(region.ec2)[0] };
+      }
       return next;
     });
   };
@@ -134,7 +152,7 @@ export function ServiceDrawer({
     setDraft(null);
   };
 
-  const estimate = draft ? calculateResource(draft, pricing) : 0;
+  const estimate = draft ? calculateResource(draft, pricing, purchaseOption) : 0;
   const isEditing = Boolean(editing);
   const meta = kind ? SERVICES[kind] : null;
   const ActiveIcon = meta?.icon ?? Plus;
@@ -178,9 +196,11 @@ export function ServiceDrawer({
                 <Plus size={18} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">서비스 카탈로그</h2>
+                <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
+                  서비스 카탈로그
+                </h2>
                 <p className="text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-                  7 services · real rates
+                  11 services · real rates
                 </p>
               </div>
             </>
@@ -200,12 +220,35 @@ export function ServiceDrawer({
         <div className="flex-1 overflow-y-auto">
           {kind && draft ? (
             <div className="space-y-6 px-4 py-5 sm:px-5">
+              <MetaFields
+                label={draft.label ?? ""}
+                env={draft.env}
+                placeholder={`예: ${meta?.title.replace("Amazon ", "")} (웹/API·결제 DB 등)`}
+                onPatch={patch}
+              />
+
               <RegionSelect regionId={draft.regionId} pricing={pricing} onChange={changeRegion} />
 
-              {draft.kind === "ec2" && <Ec2Fields resource={draft} pricing={pricing} onPatch={patch} />}
-              {draft.kind === "ebs" && <EbsFields resource={draft} pricing={pricing} onPatch={patch} />}
-              {draft.kind === "rds" && <RdsFields resource={draft} pricing={pricing} onPatch={patch} />}
-              {draft.kind === "s3" && <S3Fields resource={draft} pricing={pricing} onPatch={patch} />}
+              {draft.kind === "ec2" && (
+                <Ec2Fields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "ebs" && (
+                <EbsFields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "rds" && (
+                <RdsFields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "elasticache" && (
+                <ElastiCacheFields resource={draft} onPatch={patch} />
+              )}
+              {draft.kind === "s3" && (
+                <S3Fields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "lambda" && <LambdaFields resource={draft} onPatch={patch} />}
+              {draft.kind === "eks" && (
+                <EksFields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "cloudfront" && <CloudFrontFields resource={draft} onPatch={patch} />}
               {draft.kind === "nat" && <NatFields resource={draft} onPatch={patch} />}
               {draft.kind === "alb" && <AlbFields resource={draft} onPatch={patch} />}
               {draft.kind === "dataTransfer" && (
@@ -215,8 +258,8 @@ export function ServiceDrawer({
               <div className="flex gap-2 rounded-xl border border-zinc-200/80 bg-white px-3.5 py-3 text-[11px] leading-relaxed text-zinc-500 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-zinc-500">
                 <Info size={14} className="mt-0.5 shrink-0 text-indigo-500" />
                 <span>
-                  요율은 AWS Pricing Calculator의 현재 미터 단가를 사용합니다. 세금, 크레딧, 약정 할인은
-                  포함되지 않습니다.
+                  요율은 AWS Pricing Calculator의 미터 단가를 사용하며, 메인 화면에서 선택한 약정 할인
+                  모드({purchaseOption === "onDemand" ? "On-Demand" : purchaseOption === "sp1yr" ? "1년 SP/RI" : "3년 SP/RI"})가 실시간 반영됩니다.
                 </span>
               </div>
             </div>
@@ -230,7 +273,7 @@ export function ServiceDrawer({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="EC2, RDS, S3 검색…"
+                  placeholder="EC2, RDS, ElastiCache, EKS, Lambda, CloudFront 검색…"
                   aria-label="서비스 검색"
                   className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
                 />
@@ -238,11 +281,12 @@ export function ServiceDrawer({
 
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
-                  {query ? `검색 결과 ${filteredServices.length}개` : "서비스 선택"}
+                  {query ? `검색 결과 ${filteredServices.length}개` : "서비스 선택 (11종)"}
                 </p>
                 <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-600">
                   <MapPin size={10} />
-                  {pricing.meta.regions.find((region) => region.id === defaultRegionId)?.label ?? defaultRegionId}
+                  {pricing.meta.regions.find((region) => region.id === defaultRegionId)?.label ??
+                    defaultRegionId}
                 </span>
               </div>
 
@@ -263,7 +307,12 @@ export function ServiceDrawer({
                         className="group flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-3.5 text-left shadow-card transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none dark:hover:border-indigo-400/40"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <span className={cn("grid h-9 w-9 place-items-center rounded-xl ring-1", serviceMeta.tile)}>
+                          <span
+                            className={cn(
+                              "grid h-9 w-9 place-items-center rounded-xl ring-1",
+                              serviceMeta.tile,
+                            )}
+                          >
                             <Icon size={16} strokeWidth={1.9} />
                           </span>
                           <ArrowRight
@@ -272,7 +321,7 @@ export function ServiceDrawer({
                           />
                         </div>
                         <p className="mt-2.5 text-xs font-bold text-zinc-900 dark:text-white">
-                          {serviceMeta.title.replace("Amazon ", "")}
+                          {serviceMeta.title.replace("Amazon ", "").replace("AWS ", "")}
                         </p>
                         <p className="text-[9px] font-bold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
                           {serviceMeta.eyebrow}
@@ -328,6 +377,60 @@ export function ServiceDrawer({
 
 /* ------------------------------- Shared bits ------------------------------ */
 
+function MetaFields({
+  label,
+  env,
+  placeholder,
+  onPatch,
+}: {
+  label: string;
+  env?: EnvTag;
+  placeholder: string;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const envs: (EnvTag | undefined)[] = [undefined, "prod", "stage", "dev"];
+  return (
+    <div className="rounded-xl border border-zinc-200/80 bg-white p-3.5 dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-zinc-800 dark:text-zinc-200">
+          <Tag size={12} className="text-indigo-500" />
+          리소스 별칭 & 환경 태그 (선택)
+        </span>
+        <div className="flex items-center gap-1">
+          {envs.map((item) => {
+            const active = env === item;
+            const text = item ? ENV_META[item].label : "태그 없음";
+            return (
+              <button
+                key={text}
+                type="button"
+                onClick={() => onPatch({ env: item })}
+                className={cn(
+                  "rounded-md border px-2 py-0.5 text-[10px] font-bold transition",
+                  active
+                    ? "border-indigo-500 bg-indigo-600 text-white"
+                    : "border-zinc-200 bg-zinc-50 text-zinc-500 hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400",
+                )}
+              >
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <input
+        type="text"
+        value={label}
+        maxLength={40}
+        onChange={(e) => onPatch({ label: e.target.value || undefined })}
+        placeholder={placeholder}
+        aria-label="리소스 별칭"
+        className="w-full rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs font-medium text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:bg-white dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
+      />
+    </div>
+  );
+}
+
 function RegionSelect({
   regionId,
   pricing,
@@ -378,7 +481,21 @@ function SectionLabel({ children, hint }: { children: string; hint?: string }) {
 
 /* ---------------------------------- EC2 ---------------------------------- */
 
-const FAMILY_ORDER = ["t4g", "t3", "m6i", "m6g", "m7g", "c6g", "c6i", "c7g", "r6g", "r6i", "r7g", "g4dn", "g5"];
+const FAMILY_ORDER = [
+  "t4g",
+  "t3",
+  "m6i",
+  "m6g",
+  "m7g",
+  "c6g",
+  "c6i",
+  "c7g",
+  "r6g",
+  "r6i",
+  "r7g",
+  "g4dn",
+  "g5",
+];
 
 function Ec2Fields({
   resource,
@@ -390,13 +507,13 @@ function Ec2Fields({
   onPatch: (values: Record<string, unknown>) => void;
 }) {
   const region = getRegion(pricing, resource.regionId);
-  const families = Array.from(new Set(Object.keys(region.ec2).map((type) => type.split(".")[0]))).sort(
-    (a, b) => {
-      const ai = FAMILY_ORDER.indexOf(a);
-      const bi = FAMILY_ORDER.indexOf(b);
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b);
-    },
-  );
+  const families = Array.from(
+    new Set(Object.keys(region.ec2).map((type) => type.split(".")[0])),
+  ).sort((a, b) => {
+    const ai = FAMILY_ORDER.indexOf(a);
+    const bi = FAMILY_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b);
+  });
   const activeFamily = resource.instanceType.split(".")[0];
   const instances = Object.entries(region.ec2)
     .filter(([type]) => type.split(".")[0] === activeFamily)
@@ -406,7 +523,7 @@ function Ec2Fields({
   return (
     <>
       <div>
-        <SectionLabel hint="Graviton · Intel · AMD">인스턴스 패밀리</SectionLabel>
+        <SectionLabel hint="Graviton · Intel · GPU">인스턴스 패밀리</SectionLabel>
         <div className="flex flex-wrap gap-1.5">
           {families.map((family) => (
             <Chip
@@ -426,7 +543,7 @@ function Ec2Fields({
       </div>
 
       <div>
-        <SectionLabel hint="Linux · On-Demand">인스턴스 유형</SectionLabel>
+        <SectionLabel hint="Linux · 기본 단가">인스턴스 유형</SectionLabel>
         <div className="relative">
           <select
             aria-label="EC2 인스턴스 유형"
@@ -460,7 +577,13 @@ function Ec2Fields({
           <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">인스턴스 수량</p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">같은 사양으로 묶어서 계산합니다</p>
         </div>
-        <Stepper value={resource.qty} min={1} max={999} onChange={(qty) => onPatch({ qty })} label="EC2 수량" />
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={999}
+          onChange={(qty) => onPatch({ qty })}
+          label="EC2 수량"
+        />
       </div>
 
       <RangeField
@@ -507,7 +630,12 @@ function EbsFields({
               onClick={() =>
                 onPatch({
                   volumeType: type,
-                  iops: type === "gp3" ? 3000 : type === "io1" || type === "io2" ? 3000 : resource.iops,
+                  iops:
+                    type === "gp3"
+                      ? 3000
+                      : type === "io1" || type === "io2"
+                        ? 3000
+                        : resource.iops,
                   throughput: 125,
                 })
               }
@@ -568,7 +696,13 @@ function EbsFields({
           <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">볼륨 수량</p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">동일 사양 볼륨을 묶어 계산</p>
         </div>
-        <Stepper value={resource.qty} min={1} max={999} onChange={(qty) => onPatch({ qty })} label="EBS 수량" />
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={999}
+          onChange={(qty) => onPatch({ qty })}
+          label="EBS 수량"
+        />
       </div>
     </>
   );
@@ -595,7 +729,11 @@ function RdsFields({
   const instance = engine.instance[resource.instanceType];
   const az = resource.multiAz ? "multi" : "single";
   const storageRate = engine.storage[resource.storageType][az];
-  const supportsIops = resource.storageType === "io1" || resource.storageType === "io2";
+  const supportsIops =
+    resource.storageType === "gp3" ||
+    resource.storageType === "io1" ||
+    resource.storageType === "io2";
+  const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
 
   return (
     <>
@@ -613,7 +751,9 @@ function RdsFields({
       </div>
 
       <div>
-        <SectionLabel hint={resource.multiAz ? "Multi-AZ 요율" : "Single-AZ 요율"}>DB 인스턴스 클래스</SectionLabel>
+        <SectionLabel hint={resource.multiAz ? "Multi-AZ 요율" : "Single-AZ 요율"}>
+          DB 인스턴스 클래스
+        </SectionLabel>
         <div className="relative">
           <select
             aria-label="RDS 인스턴스 클래스"
@@ -652,9 +792,20 @@ function RdsFields({
 
       <RangeField
         label="스토리지 크기"
-        hint="자동 확장 여유분을 포함해 설정하세요"
+        hint="gp3는 400GB 이상부터 기본 12,000 IOPS / 500 MB/s가 무료 제공됩니다"
         value={resource.storageGb}
-        onChange={(storageGb) => onPatch({ storageGb })}
+        onChange={(storageGb) => {
+          const baseline = rdsGp3FreeBaseline(storageGb);
+          onPatch({
+            storageGb,
+            ...(resource.storageType === "gp3"
+              ? {
+                  iops: Math.max(resource.iops, baseline.freeIops),
+                  throughput: Math.max(resource.throughput ?? baseline.freeThroughput, baseline.freeThroughput),
+                }
+              : {}),
+          });
+        }}
         min={20}
         max={16384}
         unit="GB"
@@ -672,7 +823,13 @@ function RdsFields({
               onClick={() =>
                 onPatch({
                   storageType: type,
-                  iops: type === "io1" || type === "io2" ? Math.max(resource.iops, 1000) : resource.iops,
+                  iops:
+                    type === "gp3"
+                      ? freeIops
+                      : type === "io1" || type === "io2"
+                        ? Math.max(resource.iops, 1000)
+                        : resource.iops,
+                  throughput: type === "gp3" ? freeThroughput : 125,
                 })
               }
             >
@@ -685,13 +842,30 @@ function RdsFields({
       {supportsIops && (
         <RangeField
           label="프로비저닝 IOPS"
-          hint="io1 · io2 스토리지에서만 적용"
+          hint={
+            resource.storageType === "gp3"
+              ? `기본 ${formatNumber(freeIops)} IOPS 무료 · 초과분 과금`
+              : "io1 · io2 스토리지 프로비저닝 IOPS"
+          }
           value={resource.iops}
           onChange={(iops) => onPatch({ iops })}
-          min={1000}
+          min={resource.storageType === "gp3" ? freeIops : 1000}
           max={64000}
           step={500}
           unit="IOPS"
+        />
+      )}
+
+      {resource.storageType === "gp3" && (
+        <RangeField
+          label="프로비저닝 처리량 (Throughput)"
+          hint={`기본 ${freeThroughput} MB/s 무료 · 초과분 과금`}
+          value={resource.throughput ?? freeThroughput}
+          onChange={(throughput) => onPatch({ throughput })}
+          min={freeThroughput}
+          max={4000}
+          step={25}
+          unit="MB/s"
         />
       )}
 
@@ -700,8 +874,105 @@ function RdsFields({
           <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">DB 인스턴스 수량</p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">스토리지는 인스턴스당 1개로 계산</p>
         </div>
-        <Stepper value={resource.qty} min={1} max={99} onChange={(qty) => onPatch({ qty })} label="RDS 수량" />
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={99}
+          onChange={(qty) => onPatch({ qty })}
+          label="RDS 수량"
+        />
       </div>
+    </>
+  );
+}
+
+/* ------------------------------ ElastiCache ------------------------------ */
+
+function ElastiCacheFields({
+  resource,
+  onPatch,
+}: {
+  resource: ElastiCacheResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const hourly = getElastiCacheHourlyRate(resource.regionId, resource.nodeType, resource.engine);
+  const nodeEntries = Object.entries(ELASTICACHE_NODES);
+
+  return (
+    <>
+      <div>
+        <SectionLabel hint="Valkey는 Redis 대비 20% 저렴">인메모리 엔진</SectionLabel>
+        <Segmented
+          ariaLabel="ElastiCache 엔진"
+          value={resource.engine}
+          onChange={(engine) => onPatch({ engine })}
+          options={[
+            { value: "valkey", label: "Valkey (20% 할인 권장)" },
+            { value: "redis", label: "Redis OSS" },
+          ]}
+        />
+      </div>
+
+      <div>
+        <SectionLabel hint="Graviton2 · Graviton3">캐시 노드 유형</SectionLabel>
+        <div className="relative">
+          <select
+            aria-label="ElastiCache 노드 유형"
+            value={resource.nodeType}
+            onChange={(e) => onPatch({ nodeType: e.target.value })}
+            className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
+          >
+            {nodeEntries.map(([nodeType, spec]) => (
+              <option key={nodeType} value={nodeType}>
+                {nodeType} · {spec.vcpu} vCPU · {spec.mem} GiB ({spec.family})
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={15}
+            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400"
+          />
+        </div>
+        <p className="mt-2 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
+          노드당 {formatUsd(hourly, 4)}/hr · 총 {resource.qty * (1 + resource.replicas)}개 노드 가동
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">프라이머리 샤드 수</p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">클러스터 파티션(샤드) 수량</p>
+        </div>
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={99}
+          onChange={(qty) => onPatch({ qty })}
+          label="샤드 수량"
+        />
+      </div>
+
+      <RangeField
+        label="샤드당 복제본(Replica) 수"
+        hint="고가용성(Multi-AZ)을 위해 최소 1개 복제본을 권장합니다"
+        value={resource.replicas}
+        onChange={(replicas) => onPatch({ replicas })}
+        min={0}
+        max={5}
+        step={1}
+        unit="개"
+      />
+
+      <RangeField
+        label="스냅샷 백업 스토리지"
+        hint="추가 백업 스토리지 ($0.085 / GB-월)"
+        value={resource.backupGb}
+        onChange={(backupGb) => onPatch({ backupGb })}
+        min={0}
+        max={2000}
+        step={10}
+        unit="GB"
+      />
     </>
   );
 }
@@ -805,6 +1076,198 @@ function S3Fields({
   );
 }
 
+/* --------------------------------- Lambda -------------------------------- */
+
+function LambdaFields({
+  resource,
+  onPatch,
+}: {
+  resource: LambdaResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+      <div>
+        <SectionLabel hint="Arm64는 GB-초당 20% 저렴">아키텍처</SectionLabel>
+        <Segmented
+          ariaLabel="Lambda 아키텍처"
+          value={resource.arch}
+          onChange={(arch) => onPatch({ arch })}
+          options={[
+            { value: "arm64", label: "Arm64 (Graviton2 · 20%↓)" },
+            { value: "x86", label: "x86_64" },
+          ]}
+        />
+      </div>
+
+      <RangeField
+        label="할당 메모리"
+        hint="128 MB ~ 10,240 MB (메모리에 비례해 vCPU 성능 증가)"
+        value={resource.memoryMb}
+        onChange={(memoryMb) => onPatch({ memoryMb })}
+        min={128}
+        max={10240}
+        step={64}
+        unit="MB"
+      />
+
+      <RangeField
+        label="평균 실행 시간"
+        hint="호출 1회당 평균 소요 밀리초(ms)"
+        value={resource.durationMs}
+        onChange={(durationMs) => onPatch({ durationMs })}
+        min={1}
+        max={30000}
+        step={10}
+        unit="ms"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <NumberField
+          label="월간 Lambda 호출 수"
+          hint="100만 건당 $0.20"
+          value={resource.invocations}
+          onChange={(invocations) => onPatch({ invocations })}
+          min={0}
+          max={10_000_000_000}
+          step={100_000}
+          unit="건"
+        />
+        <NumberField
+          label="HTTP API Gateway 요청"
+          hint="외부 트리거 사용 시"
+          value={resource.apiGatewayRequests}
+          onChange={(apiGatewayRequests) => onPatch({ apiGatewayRequests })}
+          min={0}
+          max={10_000_000_000}
+          step={100_000}
+          unit="건"
+        />
+      </div>
+
+      <Toggle
+        checked={resource.includeFreeTier}
+        onChange={(includeFreeTier) => onPatch({ includeFreeTier })}
+        label="AWS 상시 프리티어 공제 적용"
+        hint="매월 100만 건 요청 및 400,000 GB-초 컴퓨트 무료 공제"
+      />
+    </>
+  );
+}
+
+/* ---------------------------------- EKS ---------------------------------- */
+
+function EksFields({
+  resource,
+  pricing,
+  onPatch,
+}: {
+  resource: EksResource;
+  pricing: PricingData;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const region = getRegion(pricing, resource.regionId);
+  const instances = Object.entries(region.ec2).sort(
+    (a, b) => a[1].vcpu - b[1].vcpu || a[1].mem - b[1].mem,
+  );
+
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">EKS 클러스터 수</p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
+            클러스터당 컨트롤 플레인 기본 $0.10/hr (월 $73)
+          </p>
+        </div>
+        <Stepper
+          value={resource.clusters}
+          min={1}
+          max={50}
+          onChange={(clusters) => onPatch({ clusters })}
+          label="EKS 클러스터 수"
+        />
+      </div>
+
+      <Toggle
+        checked={resource.extendedSupport}
+        onChange={(extendedSupport) => onPatch({ extendedSupport })}
+        label="Kubernetes 확장 버전 지원 (Extended Support)"
+        hint="표준 지원 종료 버전 유지 시 클러스터당 시간당 $0.60 부과"
+      />
+
+      <div>
+        <SectionLabel hint="Managed Node Group">워커 노드 인스턴스 유형</SectionLabel>
+        <div className="relative">
+          <select
+            aria-label="EKS 워커 노드 유형"
+            value={resource.workerInstanceType}
+            onChange={(e) => onPatch({ workerInstanceType: e.target.value })}
+            className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
+          >
+            {instances.map(([type, item]) => (
+              <option key={type} value={type}>
+                {type} · {item.vcpu} vCPU · {item.mem} GiB ({formatUsd(item.price, 4)}/hr)
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={15}
+            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400"
+          />
+        </div>
+      </div>
+
+      <RangeField
+        label="워커 노드 총 수량"
+        hint="Fargate만 사용하는 경우 0으로 설정할 수 있습니다"
+        value={resource.workerQty}
+        onChange={(workerQty) => onPatch({ workerQty })}
+        min={0}
+        max={200}
+        step={1}
+        unit="대"
+      />
+    </>
+  );
+}
+
+/* ------------------------------- CloudFront ------------------------------ */
+
+function CloudFrontFields({
+  resource,
+  onPatch,
+}: {
+  resource: CloudFrontResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+      <RangeField
+        label="월 엣지 데이터 전송량 (Data Transfer Out)"
+        hint="매월 첫 1 TB (1,024 GB)는 상시 무료 티어로 자동 공제됩니다"
+        value={resource.gbOut}
+        onChange={(gbOut) => onPatch({ gbOut })}
+        min={0}
+        max={102400}
+        step={100}
+        unit="GB"
+      />
+
+      <NumberField
+        label="월간 HTTPS 요청 수"
+        hint="매월 첫 1,000만 건 무료 · 초과 시 1만 건당 약 $0.010~$0.012"
+        value={resource.httpsRequests}
+        onChange={(httpsRequests) => onPatch({ httpsRequests })}
+        min={0}
+        max={10_000_000_000}
+        step={1_000_000}
+        unit="건"
+      />
+    </>
+  );
+}
+
 /* ---------------------------------- NAT ---------------------------------- */
 
 function NatFields({
@@ -818,10 +1281,20 @@ function NatFields({
     <>
       <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
         <div>
-          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">NAT Gateway 수량</p>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">가용 영역별 1개 구성을 권장</p>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+            NAT Gateway 수량
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
+            가용 영역별 1개 구성을 권장
+          </p>
         </div>
-        <Stepper value={resource.qty} min={1} max={99} onChange={(qty) => onPatch({ qty })} label="NAT 수량" />
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={99}
+          onChange={(qty) => onPatch({ qty })}
+          label="NAT 수량"
+        />
       </div>
 
       <RangeField
@@ -861,10 +1334,20 @@ function AlbFields({
     <>
       <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
         <div>
-          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">로드 밸런서 수량</p>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">ALB는 시간당 요금이 동일하게 적용됩니다</p>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+            로드 밸런서 수량
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
+            ALB는 시간당 요금이 동일하게 적용됩니다
+          </p>
         </div>
-        <Stepper value={resource.qty} min={1} max={99} onChange={(qty) => onPatch({ qty })} label="ALB 수량" />
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={99}
+          onChange={(qty) => onPatch({ qty })}
+          label="ALB 수량"
+        />
       </div>
 
       <RangeField

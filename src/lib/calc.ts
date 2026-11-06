@@ -3,6 +3,7 @@ import type {
   CostLine,
   CostSummary,
   PricingData,
+  PurchaseOption,
   RegionPricing,
   Resource,
   ServiceKind,
@@ -12,11 +13,30 @@ import { formatCompact, formatNumber } from "./format";
 
 export const HOURS_PER_MONTH = 730;
 
+export const ELASTICACHE_NODES: Record<
+  string,
+  { vcpu: number; mem: number; baseRedisUsdHr: number; family: string }
+> = {
+  "cache.t4g.micro": { vcpu: 2, mem: 0.5, baseRedisUsdHr: 0.016, family: "Burstable (Graviton2)" },
+  "cache.t4g.small": { vcpu: 2, mem: 1.37, baseRedisUsdHr: 0.032, family: "Burstable (Graviton2)" },
+  "cache.t4g.medium": { vcpu: 2, mem: 3.09, baseRedisUsdHr: 0.065, family: "Burstable (Graviton2)" },
+  "cache.m6g.large": { vcpu: 2, mem: 6.38, baseRedisUsdHr: 0.149, family: "General Purpose (Graviton2)" },
+  "cache.m7g.large": { vcpu: 2, mem: 6.38, baseRedisUsdHr: 0.156, family: "General Purpose (Graviton3)" },
+  "cache.r6g.large": { vcpu: 2, mem: 13.07, baseRedisUsdHr: 0.212, family: "Memory Optimized (Graviton2)" },
+  "cache.r7g.large": { vcpu: 2, mem: 13.07, baseRedisUsdHr: 0.223, family: "Memory Optimized (Graviton3)" },
+  "cache.r7g.xlarge": { vcpu: 4, mem: 26.32, baseRedisUsdHr: 0.446, family: "Memory Optimized (Graviton3)" },
+  "cache.r7g.2xlarge": { vcpu: 8, mem: 52.82, baseRedisUsdHr: 0.892, family: "Memory Optimized (Graviton3)" },
+};
+
 const EMPTY_KINDS = (): Record<ServiceKind, number> => ({
   ec2: 0,
   ebs: 0,
   rds: 0,
+  elasticache: 0,
   s3: 0,
+  lambda: 0,
+  eks: 0,
+  cloudfront: 0,
   nat: 0,
   alb: 0,
   dataTransfer: 0,
@@ -31,6 +51,39 @@ const EMPTY_CATEGORIES = (): Record<Category, number> => ({
 
 export function getRegion(pricing: PricingData, regionId: string): RegionPricing {
   return pricing.regions.find((r) => r.id === regionId) ?? pricing.regions[0];
+}
+
+export function getComputeMultiplier(option: PurchaseOption = "onDemand", kind: "ec2" | "rds" | "elasticache"): number {
+  if (option === "onDemand") return 1;
+  if (kind === "rds") {
+    return option === "sp1yr" ? 0.73 : 0.54;
+  }
+  return option === "sp1yr" ? 0.72 : 0.52;
+}
+
+export function getRegionalFactor(regionId: string): number {
+  const factors: Record<string, number> = {
+    "us-east-1": 1.0,
+    "us-west-2": 1.0,
+    "eu-west-1": 1.08,
+    "eu-central-1": 1.14,
+    "ap-northeast-2": 1.16,
+    "ap-northeast-1": 1.18,
+    "ap-southeast-1": 1.16,
+    "ap-southeast-2": 1.18,
+  };
+  return factors[regionId] ?? 1.12;
+}
+
+export function getElastiCacheHourlyRate(
+  regionId: string,
+  nodeType: string,
+  engine: "valkey" | "redis",
+): number {
+  const spec = ELASTICACHE_NODES[nodeType] ?? ELASTICACHE_NODES["cache.t4g.micro"];
+  const redisHourly = spec.baseRedisUsdHr * getRegionalFactor(regionId);
+  // AWS prices Valkey 20% lower than Redis on node-hours
+  return engine === "valkey" ? redisHourly * 0.8 : redisHourly;
 }
 
 function io2IopsMonthly(region: RegionPricing, iops: number): number {
@@ -108,20 +161,30 @@ function dataTransferMonthly(region: RegionPricing, gb: number): number {
   return total;
 }
 
-export function calculateResource(resource: Resource, pricing: PricingData): number {
+export function rdsGp3FreeBaseline(storageGb: number): { freeIops: number; freeThroughput: number } {
+  // AWS RDS gp3: volumes >= 400 GiB include 12,000 IOPS and 500 MiB/s baseline
+  if (storageGb >= 400) {
+    return { freeIops: 12_000, freeThroughput: 500 };
+  }
+  return { freeIops: 3_000, freeThroughput: 125 };
+}
+
+export function calculateResource(
+  resource: Resource,
+  pricing: PricingData,
+  purchaseOption: PurchaseOption = "onDemand",
+): number {
   const region = getRegion(pricing, resource.regionId);
   switch (resource.kind) {
     case "ec2": {
       const rate = region.ec2[resource.instanceType];
       if (!rate) return 0;
-      return rate.price * HOURS_PER_MONTH * resource.qty * (resource.utilization / 100);
+      const mult = getComputeMultiplier(purchaseOption, "ec2");
+      return rate.price * mult * HOURS_PER_MONTH * resource.qty * (resource.utilization / 100);
     }
     case "ebs": {
       const key = resource.volumeType;
-      const perGb =
-        region.ebs[key]?.price ??
-        region.ebs.gp3?.price ??
-        0;
+      const perGb = region.ebs[key]?.price ?? region.ebs.gp3?.price ?? 0;
       const base = perGb * resource.sizeGb * resource.qty;
       const iops = ebsIopsMonthly(region, resource) * resource.qty;
       const throughput = ebsThroughputMonthly(region, resource) * resource.qty;
@@ -132,13 +195,30 @@ export function calculateResource(resource: Resource, pricing: PricingData): num
       const instance = engine.instance[resource.instanceType];
       if (!instance) return 0;
       const az = resource.multiAz ? "multi" : "single";
-      const instanceCost = (resource.multiAz ? instance.multi : instance.single) * HOURS_PER_MONTH;
+      const mult = getComputeMultiplier(purchaseOption, "rds");
+      const instanceCost =
+        (resource.multiAz ? instance.multi : instance.single) * mult * HOURS_PER_MONTH;
       const storageRate = engine.storage[resource.storageType][az]?.price ?? 0;
       let storageCost = storageRate * resource.storageGb;
       if (resource.storageType === "io1" || resource.storageType === "io2") {
         storageCost += resource.iops * (engine.storage.iops[az]?.price ?? 0);
+      } else if (resource.storageType === "gp3") {
+        const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
+        const extraIops = Math.max(0, resource.iops - freeIops);
+        const extraThroughput = Math.max(0, (resource.throughput ?? freeThroughput) - freeThroughput);
+        const gp3IopsRate = engine.storage.gp3Iops?.[az]?.price ?? 0.02;
+        const throughputRate = engine.storage.throughput?.[az]?.price ?? 0.08;
+        storageCost += extraIops * gp3IopsRate + extraThroughput * throughputRate;
       }
       return (instanceCost + storageCost) * resource.qty;
+    }
+    case "elasticache": {
+      const hourly = getElastiCacheHourlyRate(resource.regionId, resource.nodeType, resource.engine);
+      const mult = getComputeMultiplier(purchaseOption, "elasticache");
+      const totalNodes = resource.qty * (1 + resource.replicas);
+      const nodeMonthly = hourly * mult * HOURS_PER_MONTH * totalNodes;
+      const backupMonthly = resource.backupGb * 0.085;
+      return nodeMonthly + backupMonthly;
     }
     case "s3": {
       const config = region.s3[resource.storageClass] as {
@@ -156,6 +236,42 @@ export function calculateResource(resource: Resource, pricing: PricingData): num
         resource.retrievalGb * retrieval
       );
     }
+    case "lambda": {
+      const freeRequests = resource.includeFreeTier ? 1_000_000 : 0;
+      const freeGbSeconds = resource.includeFreeTier ? 400_000 : 0;
+      const billableRequests = Math.max(0, resource.invocations - freeRequests);
+      const requestCost = (billableRequests / 1_000_000) * 0.2;
+
+      const totalGbSeconds =
+        resource.invocations * (resource.durationMs / 1000) * (resource.memoryMb / 1024);
+      const billableGbSeconds = Math.max(0, totalGbSeconds - freeGbSeconds);
+      const gbSecondRate = resource.arch === "arm64" ? 0.0000133334 : 0.0000166667;
+      const computeCost = billableGbSeconds * gbSecondRate;
+
+      const apiGwRatePerMillion = 1.0 * getRegionalFactor(resource.regionId);
+      const apiGwCost = (resource.apiGatewayRequests / 1_000_000) * apiGwRatePerMillion;
+      return requestCost + computeCost + apiGwCost;
+    }
+    case "eks": {
+      const controlPlaneRate = resource.extendedSupport ? 0.6 : 0.1;
+      const controlPlaneCost = resource.clusters * controlPlaneRate * HOURS_PER_MONTH;
+      const workerRate =
+        region.ec2[resource.workerInstanceType]?.price ??
+        region.ec2["m6i.large"]?.price ??
+        0.096;
+      const mult = getComputeMultiplier(purchaseOption, "ec2");
+      const workerCost = workerRate * mult * HOURS_PER_MONTH * resource.workerQty;
+      return controlPlaneCost + workerCost;
+    }
+    case "cloudfront": {
+      // CloudFront includes 1 TB/month free data transfer out & 10M HTTPS requests free
+      const billableGb = Math.max(0, resource.gbOut - 1024);
+      const isApac = resource.regionId.startsWith("ap-");
+      const perGbRate = isApac ? 0.085 : 0.085 * 0.92;
+      const billableRequests = Math.max(0, resource.httpsRequests - 10_000_000);
+      const reqRatePer10k = isApac ? 0.012 : 0.01;
+      return billableGb * perGbRate + (billableRequests / 10_000) * reqRatePer10k;
+    }
     case "nat": {
       const hourly = region.nat.hourly?.price ?? 0;
       const perGb = region.nat.perGb?.price ?? 0;
@@ -171,6 +287,47 @@ export function calculateResource(resource: Resource, pricing: PricingData): num
     default:
       return 0;
   }
+}
+
+export function getGravitonEquivalent(instanceType: string, region: RegionPricing): string | null {
+  const [family, size] = instanceType.split(".");
+  if (!family || !size) return null;
+  const map: Record<string, string[]> = {
+    t3: ["t4g"],
+    m6i: ["m7g", "m6g"],
+    c6i: ["c7g", "c6g"],
+    r6i: ["r7g", "r6g"],
+  };
+  const candidates = map[family];
+  if (!candidates) return null;
+  for (const targetFamily of candidates) {
+    const candidate = `${targetFamily}.${size}`;
+    if (region.ec2[candidate]) return candidate;
+  }
+  return null;
+}
+
+export function getRdsGravitonEquivalent(
+  instanceType: string,
+  engine: "postgres" | "mysql",
+  region: RegionPricing,
+): string | null {
+  const parts = instanceType.split(".");
+  if (parts.length !== 3) return null;
+  const [, family, size] = parts;
+  const map: Record<string, string[]> = {
+    t3: ["t4g"],
+    m6i: ["m7g", "m6g"],
+    r6i: ["r7g", "r6g"],
+  };
+  const candidates = map[family];
+  if (!candidates) return null;
+  const bucket = region.rds[engine].instance;
+  for (const targetFamily of candidates) {
+    const candidate = `db.${targetFamily}.${size}`;
+    if (bucket[candidate]) return candidate;
+  }
+  return null;
 }
 
 export function resourceDetail(resource: Resource, pricing: PricingData): string {
@@ -192,12 +349,40 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
     }
     case "rds": {
       const engine = resource.engine === "postgres" ? "PostgreSQL" : "MySQL";
-      return `${engine} · ${resource.instanceType} · ${resource.multiAz ? "Multi-AZ" : "Single-AZ"} · ${formatNumber(resource.storageGb)} GB ${resource.storageType}`;
+      const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
+      const parts = [
+        engine,
+        resource.instanceType,
+        resource.multiAz ? "Multi-AZ" : "Single-AZ",
+        `${formatNumber(resource.storageGb)} GB ${resource.storageType}`,
+      ];
+      if (
+        (resource.storageType === "io1" || resource.storageType === "io2") ||
+        (resource.storageType === "gp3" && resource.iops > freeIops)
+      ) {
+        parts.push(`${formatNumber(resource.iops)} IOPS`);
+      }
+      if (resource.storageType === "gp3" && (resource.throughput ?? freeThroughput) > freeThroughput) {
+        parts.push(`${resource.throughput} MB/s`);
+      }
+      return parts.join(" · ");
+    }
+    case "elasticache": {
+      const engineLabel = resource.engine === "valkey" ? "Valkey" : "Redis";
+      return `${engineLabel} · ${resource.nodeType} · ${resource.qty}샤드 × 복제본 ${resource.replicas}`;
     }
     case "s3": {
       const label = S3_CLASS_LABEL[resource.storageClass];
       return `${label} · ${formatNumber(resource.storageGb)} GB · 요청 ${formatCompact(resource.putRequests + resource.getRequests)}`;
     }
+    case "lambda": {
+      const archLabel = resource.arch === "arm64" ? "Arm64" : "x86_64";
+      return `${archLabel} · ${resource.memoryMb}MB · ${resource.durationMs}ms · 호출 ${formatCompact(resource.invocations)}/월`;
+    }
+    case "eks":
+      return `클러스터 ${resource.clusters}개${resource.extendedSupport ? "(확장 지원)" : ""} · 워커 ${resource.workerInstanceType} × ${resource.workerQty}`;
+    case "cloudfront":
+      return `엣지 전송 ${formatNumber(resource.gbOut / 1024, 2)} TB · HTTPS ${formatCompact(resource.httpsRequests)}`;
     case "nat":
       return `${resource.qty}개 · ${formatNumber(resource.hours)}h · ${formatNumber(resource.dataGb)} GB 처리`;
     case "alb":
@@ -218,13 +403,19 @@ export const S3_CLASS_LABEL: Record<Extract<Resource, { kind: "s3" }>["storageCl
   deepArchive: "Deep Archive",
 };
 
-export function calculateSummary(resources: Resource[], pricing: PricingData): CostSummary {
+export function calculateSummary(
+  resources: Resource[],
+  pricing: PricingData,
+  purchaseOption: PurchaseOption = "onDemand",
+): CostSummary {
   const lines: CostLine[] = resources.map((resource) => {
-    const monthlyUsd = calculateResource(resource, pricing);
+    const monthlyUsd = calculateResource(resource, pricing, purchaseOption);
     return {
       id: resource.id,
       kind: resource.kind,
       label: SERVICES[resource.kind].title,
+      customLabel: resource.label,
+      env: resource.env,
       regionId: resource.regionId,
       monthlyUsd,
       category: SERVICES[resource.kind].category,
@@ -238,7 +429,18 @@ export function calculateSummary(resources: Resource[], pricing: PricingData): C
     byCategory[line.category] += line.monthlyUsd;
   }
   const monthlyUsd = lines.reduce((sum, line) => sum + line.monthlyUsd, 0);
-  return { lines, monthlyUsd, annualUsd: monthlyUsd * 12, byKind, byCategory };
+  const onDemandMonthlyUsd = resources.reduce(
+    (sum, resource) => sum + calculateResource(resource, pricing, "onDemand"),
+    0,
+  );
+  return {
+    lines,
+    monthlyUsd,
+    annualUsd: monthlyUsd * 12,
+    onDemandMonthlyUsd,
+    byKind,
+    byCategory,
+  };
 }
 
 export function defaultRegion(pricing: PricingData, regionId: string): RegionPricing {

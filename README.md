@@ -2,7 +2,6 @@
 
 > 리전별 실제 AWS 요율 데이터로 설계하는 초고속 클라우드 인프라 아키텍처 비용 계산기 & FinOps 스튜디오
 
-[![Deploy to GitHub Pages](https://github.com/unihit/aws-cost-studio/actions/workflows/deploy.yml/badge.svg)](https://github.com/unihit/aws-cost-studio/actions/workflows/deploy.yml)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue?style=flat&logo=github)](https://unihit.github.io/aws-cost-studio/)
 
 ![AWS Cost Studio Dashboard Dark](screenshots/dashboard-dark.png)
@@ -13,26 +12,29 @@
 
 - **AWS 공식 Pricing Calculator 실측 요율 연동**:
   - `ap-northeast-2 (서울)`을 포함한 8대 핵심 리전(`서울`, `도쿄`, `싱가포르`, `시드니`, `버지니아`, `오리건`, `프랑크푸르트`, `아일랜드`)의 최신 온디맨드 단가 데이터 내장
-  - 오프라인/정적 환경에서도 즉시 실시간 비용 계산 지원
-- **7개 핵심 인프라 서비스 정밀 산출**:
+  - 일괄 리전 변경(Region Compare) 기능으로 1초 만에 리전 간 전체 아키텍처 비용 비교 지원
+- **11개 핵심 인프라 서비스 정밀 산출**:
   - **Amazon EC2**: Graviton(`t4g`, `m6g`, `c7g`, `r7g`), Intel(`m6i`, `c6i`), GPU(`g4dn`, `g5`) 등 최신 인스턴스 패밀리 및 월간 가동률(%) 반영
   - **Amazon EBS**: gp3, io2 볼륨 스토리지 요금 및 프로비저닝 IOPS / Throughput 할증 정밀 계산
-  - **Amazon RDS**: PostgreSQL / MySQL 엔진, Multi-AZ 구성, gp3/io1 스토리지 요율 통합
+  - **Amazon RDS**: PostgreSQL / MySQL 엔진, Multi-AZ 구성, gp3 용량 구간별(400GB 기준) 기본 IOPS/처리량 무료 제공분 및 초과 할증 통합 계산
+  - **Amazon ElastiCache**: Valkey(20% 할인) · Redis OSS 인메모리 캐시 노드, 복제본(Replica), 백업 스토리지 계산
   - **Amazon S3**: Standard, Glacier Deep Archive 등 스토리지 계단식 요율 및 요청(PUT/GET) 단가
+  - **AWS Lambda & API Gateway**: Arm64(Graviton2) / x86_64 실행 단가, 상시 프리티어 공제, HTTP API Gateway 요청 비용 합산
+  - **Amazon EKS**: 클러스터 컨트롤 플레인 고정비($0.10/h) · 확장 버전 지원 · 관리형 워커 노드 통합 산출
+  - **Amazon CloudFront**: 매월 1TB 무료 아웃바운드 및 1,000만 건 무료 HTTPS 요청 티어가 반영된 글로벌 엣지 CDN 비용
   - **NAT Gateway**: 인스턴스 시간당 요금 + 처리 데이터(GB) 비용
   - **Application Load Balancer (ALB)**: 기본 가동 시간 요금 + LCU(Load Balancer Capacity Unit) 사용량
   - **Data Transfer**: 인터넷 아웃바운드 구간별(10TB, 40TB, 100TB) 티어링 요율 자동 적용
-- **원클릭 아키텍처 프리셋 (Architecture Presets)**:
-  - 🚀 **스타트업 MVP 스택**: 2× EC2 + RDS + S3 + ALB 가성비 기본 스택
-  - 🛡️ **고가용성 프로덕션 웹**: Multi-AZ RDS + 이중화 NAT GW + 고성능 gp3 볼륨
-  - 🤖 **AI / ML 추론 파이프라인**: GPU 인스턴스(g5) + 대용량 S3 + 초고속 Throughput
-- **FinOps 인사이트 & 최적화 제안 (FinOps Insights)**:
-  - Graviton 마이그레이션 절감액 예측, NAT Gateway 비용 최적화, S3 Lifecycle 정책 제안
-- **다국적 통화 환율 지원 (USD / KRW)**:
-  - 실시간 기준 환율 토글로 원화/달러 환산 즉시 지원
-- **문서화 및 내보내기 (Export & Share)**:
-  - 기술 검토 보고서용 **Markdown 견적 리포트** 생성 및 클립보드 복사
-  - 아키텍처 재사용을 위한 **JSON 설정 내보내기/가져오기**
+- **약정 할인 모델 (On-Demand / 1년 SP·RI / 3년 SP·RI) 토글**:
+  - 온디맨드 정가 대비 1년·3년 Savings Plans / Reserved Instances 적용 시 예상 절감액 즉시 비교
+- **실측 기반 FinOps 인사이트 & 원클릭 최적화**:
+  - x86 인스턴스를 동급 Graviton(Arm) 실제 단가로 비교 후 **원클릭 전환**
+  - ElastiCache Redis → Valkey(20% 할인), Lambda x86 → Arm64(20% 할인), 1년 약정 전환 원클릭 적용
+- **리소스 별칭(Custom Label) & 환경 태그 (`PROD` / `STAGE` / `DEV`)**:
+  - 카드별 용도 메모(예: `"결제 메인 DB"`, `"웹/API 서버"`) 및 환경별 필터링 지원
+- **URL 공유 링크 & 실시간 환율 연동 (USD / KRW)**:
+  - 백엔드 없이 URL 파라미터(`?s=...`) 하나로 동료에게 즉시 견적 공유
+  - 실시간 USD/KRW 환율 원클릭 조회 및 Markdown/JSON 내보내기
 
 ---
 
@@ -46,10 +48,10 @@
 
 ## 🛠️ 기술 스택 (Tech Stack)
 
-- **Frontend**: React 18, TypeScript, Vite
+- **Frontend**: React 18, TypeScript, Vite (Code Splitting & Manual Chunks 최적화)
 - **Styling**: Tailwind CSS, PostCSS, Lucide Icons
 - **Data Visualization**: Recharts (도넛 차트 및 카테고리별 비용 시각화)
-- **Deployment**: GitHub Actions, GitHub Pages
+- **Deployment**: GitHub Pages (`gh-pages`)
 
 ---
 

@@ -1,6 +1,6 @@
-import { ArrowDownRight, Sparkles } from "lucide-react";
+import { ArrowDownRight, Sparkles, Zap } from "lucide-react";
 import type { Currency } from "../types";
-import type { Insight, InsightTone } from "../lib/insights";
+import type { Insight, InsightAction, InsightTone } from "../lib/insights";
 import { formatMoney } from "../lib/format";
 import { cn } from "./Primitives";
 
@@ -9,24 +9,37 @@ interface InsightsProps {
   totalSavingsUsd: number;
   currency: Currency;
   fx: number;
+  onApplyAction?: (action: InsightAction) => void;
 }
 
-const toneStyles: Record<InsightTone, { dot: string; badge: string }> = {
+const toneStyles: Record<InsightTone, { dot: string; badge: string; button: string }> = {
   amber: {
     dot: "bg-amber-500",
     badge: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    button:
+      "border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300",
   },
   emerald: {
     dot: "bg-emerald-500",
     badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    button:
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300",
   },
   indigo: {
     dot: "bg-indigo-500",
     badge: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
+    button:
+      "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-300",
   },
 };
 
-export function Insights({ insights, totalSavingsUsd, currency, fx }: InsightsProps) {
+export function Insights({
+  insights,
+  totalSavingsUsd,
+  currency,
+  fx,
+  onApplyAction,
+}: InsightsProps) {
   return (
     <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-card dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none">
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
@@ -35,8 +48,12 @@ export function Insights({ insights, totalSavingsUsd, currency, fx }: InsightsPr
             <Sparkles size={14} />
           </span>
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">최적화 인사이트</h2>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-500">현재 구성에서 발견한 절감 기회</p>
+            <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
+              최적화 인사이트
+            </h2>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-500">
+              실측 요율 비교 및 원클릭 아키텍처 튜닝
+            </p>
           </div>
         </div>
       </div>
@@ -49,7 +66,9 @@ export function Insights({ insights, totalSavingsUsd, currency, fx }: InsightsPr
             </p>
             <p className="mt-0.5 font-mono text-lg font-semibold tracking-tight text-emerald-700 tabular-nums dark:text-emerald-400">
               {formatMoney(totalSavingsUsd, currency, fx)}
-              <span className="ml-1 text-[10px] font-medium text-emerald-600/60 dark:text-emerald-500/60">/월</span>
+              <span className="ml-1 text-[10px] font-medium text-emerald-600/60 dark:text-emerald-500/60">
+                /월
+              </span>
             </p>
           </div>
           <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
@@ -81,7 +100,22 @@ export function Insights({ insights, totalSavingsUsd, currency, fx }: InsightsPr
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">{insight.body}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
+                    {insight.body}
+                  </p>
+                  {insight.action && insight.actionLabel && onApplyAction && (
+                    <button
+                      type="button"
+                      onClick={() => insight.action && onApplyAction(insight.action)}
+                      className={cn(
+                        "mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold transition",
+                        tone.button,
+                      )}
+                    >
+                      <Zap size={11} />
+                      {insight.actionLabel}
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
@@ -90,7 +124,7 @@ export function Insights({ insights, totalSavingsUsd, currency, fx }: InsightsPr
       </div>
 
       <p className="border-t border-zinc-100 px-5 py-3 text-[10px] leading-relaxed text-zinc-400 dark:border-white/[0.06] dark:text-zinc-600">
-        절감액은 일반적인 권장 절감률을 적용한 추정치이며, 실제 약정 조건에 따라 달라질 수 있습니다.
+        Graviton · Valkey · Arm64 전환은 실제 단가 차이를 계산하며, 버튼 클릭 시 즉시 구성에 반영됩니다.
       </p>
     </section>
   );

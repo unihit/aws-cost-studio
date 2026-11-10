@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Plus, Search, X } from "lucide-react";
+import { ArrowUpDown, Plus, RotateCcw, Search, X } from "lucide-react";
 import pricingJson from "./data/pricing.json";
 import type {
   Category,
@@ -472,6 +472,17 @@ export default function App() {
                 <span className="font-mono text-sm font-semibold tracking-tight text-zinc-900 tabular-nums dark:text-white">
                   {formatMoney(summary.monthlyUsd, currency, fx)}
                 </span>
+                {resources.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    title="모든 리소스 구성 초기화"
+                    className="no-print inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-[11px] font-semibold text-zinc-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+                  >
+                    <RotateCcw size={12} />
+                    <span className="hidden sm:inline">전체</span> 초기화
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={openCatalog}

@@ -9,7 +9,7 @@ import type {
   ServiceKind,
   SupportPlan,
 } from "../types";
-import { SERVICES } from "./services";
+import { BEDROCK_MODELS, SERVICES } from "./services";
 import { formatCompact, formatNumber } from "./format";
 
 export const HOURS_PER_MONTH = 730;
@@ -44,6 +44,7 @@ const EMPTY_KINDS = (): Record<ServiceKind, number> => ({
   alb: 0,
   tgw: 0,
   vpn: 0,
+  bedrock: 0,
   dataTransfer: 0,
 });
 
@@ -375,6 +376,13 @@ export function calculateResource(
       const dtoCost = dataTransferMonthly(region, resource.dataOutGb);
       return connCost + dtoCost;
     }
+    case "bedrock": {
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+      const factor = getRegionalFactor(resource.regionId);
+      const inputCost = resource.monthlyInputTokensM * model.inputPerMillionUsd * factor;
+      const outputCost = resource.monthlyOutputTokensM * model.outputPerMillionUsd * factor;
+      return inputCost + outputCost;
+    }
     case "dataTransfer":
       return dataTransferMonthly(region, resource.gbOut);
     default:
@@ -513,6 +521,10 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
       return `어태치먼트 ${resource.qty}개 · ${formatNumber(resource.hours)}h · 처리 ${formatNumber(resource.dataProcessedGb)} GB`;
     case "vpn":
       return `${resource.accelerated ? "가속 VPN" : "표준 IPsec"} · 연결 ${resource.qty}개(터널 ${resource.qty * 2}개) · ${formatNumber(resource.hours)}h · 송신 ${formatNumber(resource.dataOutGb)} GB`;
+    case "bedrock": {
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+      return `${model.name} · 입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M · 출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M 토큰`;
+    }
     case "dataTransfer":
       return `${formatNumber(resource.gbOut / 1024, 1)} TB /월 아웃바운드`;
     default:

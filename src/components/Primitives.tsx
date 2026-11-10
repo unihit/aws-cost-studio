@@ -256,29 +256,39 @@ interface ToggleProps {
 
 export function Toggle({ checked, onChange, label, hint }: ToggleProps) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-      <div>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={checked}
+      onClick={() => onChange(!checked)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onChange(!checked);
+        }
+      }}
+      className="flex cursor-pointer select-none items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white px-3.5 py-3 transition hover:border-zinc-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/20"
+    >
+      <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">{label}</p>
         {hint && <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">{hint}</p>}
       </div>
-      <button
-        type="button"
+      <span
         role="switch"
         aria-checked={checked}
         aria-label={label}
-        onClick={() => onChange(!checked)}
         className={cn(
-          "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+          "pointer-events-none relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ease-in-out",
           checked ? "bg-indigo-600" : "bg-zinc-300 dark:bg-white/15",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-            checked ? "translate-x-[22px]" : "translate-x-0.5",
+            "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out",
+            checked ? "translate-x-5" : "translate-x-0",
           )}
         />
-      </button>
+      </span>
     </div>
   );
 }

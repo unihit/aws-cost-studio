@@ -1,6 +1,7 @@
 import type { PricingData, Resource, ServiceKind } from "../types";
 import { formatCompact, formatNumber } from "./format";
 import { ELASTICACHE_NODES, getRegion, rdsGp3FreeBaseline, S3_CLASS_LABEL } from "./calc";
+import { BEDROCK_MODELS } from "./services";
 import { uid } from "./presets";
 
 export function createDefaultResource(kind: ServiceKind, regionId: string): Resource {
@@ -110,6 +111,14 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
       return { ...base, kind, qty: 3, hours: 730, dataProcessedGb: 500 };
     case "vpn":
       return { ...base, kind, qty: 1, hours: 730, accelerated: false, dataOutGb: 100 };
+    case "bedrock":
+      return {
+        ...base,
+        kind,
+        modelId: "anthropic.claude-3-5-sonnet",
+        monthlyInputTokensM: 5,
+        monthlyOutputTokensM: 1,
+      };
     case "dataTransfer":
       return { ...base, kind, gbOut: 1024 };
   }
@@ -302,6 +311,15 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         `${formatNumber(resource.hours)}시간`,
         `아웃바운드 ${formatNumber(resource.dataOutGb)} GB`,
       ];
+    case "bedrock": {
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+      return [
+        model.name,
+        `입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M`,
+        `출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M`,
+        `${model.provider}`,
+      ];
+    }
     case "dataTransfer":
       return [`${formatNumber(resource.gbOut / 1024, 2)} TB 아웃바운드`];
     default:
@@ -340,6 +358,8 @@ export function resourceIconLabel(resource: Resource): string {
       return "TGW";
     case "vpn":
       return "S2S VPN";
+    case "bedrock":
+      return "Bedrock";
     case "dataTransfer":
       return "OUT";
     default:

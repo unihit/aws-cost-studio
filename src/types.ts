@@ -13,7 +13,8 @@ export type ServiceKind =
   | "ecs"
   | "dynamodb"
   | "tgw"
-  | "vpn";
+  | "vpn"
+  | "bedrock";
 
 export type Category = "compute" | "database" | "storage" | "network";
 
@@ -175,6 +176,13 @@ export interface VpnResource extends BaseResource {
   dataOutGb: number;
 }
 
+export interface BedrockResource extends BaseResource {
+  kind: "bedrock";
+  modelId: string;
+  monthlyInputTokensM: number;
+  monthlyOutputTokensM: number;
+}
+
 export type Resource =
   | Ec2Resource
   | EbsResource
@@ -190,7 +198,8 @@ export type Resource =
   | EcsResource
   | DynamoDbResource
   | TgwResource
-  | VpnResource;
+  | VpnResource
+  | BedrockResource;
 
 export interface Rate {
   price: number;

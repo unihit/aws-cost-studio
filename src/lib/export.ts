@@ -27,6 +27,7 @@ const VALID_KINDS: ServiceKind[] = [
   "alb",
   "tgw",
   "vpn",
+  "bedrock",
   "dataTransfer",
 ];
 
@@ -449,6 +450,14 @@ export function parseImportedResources(raw: unknown): Resource[] {
             hours: Math.min(744, Math.max(1, num(item.hours, 730))),
             accelerated: Boolean(item.accelerated),
             dataOutGb: Math.max(0, num(item.dataOutGb, 100)),
+          };
+        case "bedrock":
+          return {
+            ...b,
+            kind,
+            modelId: str(item.modelId, "anthropic.claude-3-5-sonnet"),
+            monthlyInputTokensM: Math.max(0, num(item.monthlyInputTokensM, 5)),
+            monthlyOutputTokensM: Math.max(0, num(item.monthlyOutputTokensM, 1)),
           };
         case "dataTransfer":
           return { ...b, kind, gbOut: Math.max(0, num(item.gbOut, 0)) };

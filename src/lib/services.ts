@@ -12,6 +12,7 @@ import {
   Lock,
   Network,
   Server,
+  Sparkles,
   Table2,
   Waypoints,
   type LucideIcon,
@@ -170,6 +171,16 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
     accent: "text-lime-600",
     tile: "bg-lime-500/10 text-lime-600 ring-lime-500/20",
   },
+  bedrock: {
+    kind: "bedrock",
+    title: "Amazon Bedrock",
+    eyebrow: "Generative AI",
+    description: "Claude 3.5 Sonnet/Haiku, Llama, Titan 등 주요 파운데이션 모델의 월간 입출력 토큰 비용을 계산합니다.",
+    icon: Sparkles,
+    category: "compute",
+    accent: "text-fuchsia-500",
+    tile: "bg-fuchsia-500/10 text-fuchsia-500 ring-fuchsia-500/20",
+  },
   dataTransfer: {
     kind: "dataTransfer",
     title: "Data Transfer",
@@ -182,9 +193,78 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
   },
 };
 
+export interface BedrockModelSpec {
+  id: string;
+  name: string;
+  provider: "Anthropic" | "Meta" | "Amazon";
+  inputPerMillionUsd: number;
+  outputPerMillionUsd: number;
+  description: string;
+}
+
+export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
+  "anthropic.claude-3-5-sonnet": {
+    id: "anthropic.claude-3-5-sonnet",
+    name: "Claude 3.5 Sonnet",
+    provider: "Anthropic",
+    inputPerMillionUsd: 3.0,
+    outputPerMillionUsd: 15.0,
+    description: "업계 최고 성능 코딩·에이전트·복합 추론 ($3.00 / $15.00 per 1M)",
+  },
+  "anthropic.claude-3-5-haiku": {
+    id: "anthropic.claude-3-5-haiku",
+    name: "Claude 3.5 Haiku",
+    provider: "Anthropic",
+    inputPerMillionUsd: 0.8,
+    outputPerMillionUsd: 4.0,
+    description: "초고속 응답 속도와 뛰어난 가성비 ($0.80 / $4.00 per 1M)",
+  },
+  "anthropic.claude-3-opus": {
+    id: "anthropic.claude-3-opus",
+    name: "Claude 3 Opus",
+    provider: "Anthropic",
+    inputPerMillionUsd: 15.0,
+    outputPerMillionUsd: 75.0,
+    description: "심층 분석·복잡한 고난도 추론 작업용 ($15.00 / $75.00 per 1M)",
+  },
+  "meta.llama-3-3-70b": {
+    id: "meta.llama-3-3-70b",
+    name: "Llama 3.3 70B",
+    provider: "Meta",
+    inputPerMillionUsd: 0.72,
+    outputPerMillionUsd: 0.72,
+    description: "최신 오픈 가중치 고성능 플래그십 ($0.72 / $0.72 per 1M)",
+  },
+  "meta.llama-3-1-8b": {
+    id: "meta.llama-3-1-8b",
+    name: "Llama 3.1 8B",
+    provider: "Meta",
+    inputPerMillionUsd: 0.22,
+    outputPerMillionUsd: 0.22,
+    description: "초저비용 경량 실시간 서빙 모델 ($0.22 / $0.22 per 1M)",
+  },
+  "amazon.titan-text-express": {
+    id: "amazon.titan-text-express",
+    name: "Titan Text Express",
+    provider: "Amazon",
+    inputPerMillionUsd: 0.2,
+    outputPerMillionUsd: 0.6,
+    description: "텍스트 요약, 질의응답용 가성비 모델 ($0.20 / $0.60 per 1M)",
+  },
+  "amazon.titan-embed-text": {
+    id: "amazon.titan-embed-text",
+    name: "Titan Embeddings G1",
+    provider: "Amazon",
+    inputPerMillionUsd: 0.02,
+    outputPerMillionUsd: 0.0,
+    description: "RAG 검색 및 벡터 임베딩 생성 ($0.02 per 1M)",
+  },
+};
+
 export const SERVICE_ORDER: ServiceKind[] = [
   "ec2",
   "ecs",
+  "bedrock",
   "rds",
   "dynamodb",
   "elasticache",
@@ -217,6 +297,7 @@ export const SERVICE_COLORS: Record<ServiceKind, string> = {
   lambda: "#f97316",
   eks: "#3b82f6",
   ecs: "#ec4899",
+  bedrock: "#c026d3",
   cloudfront: "#14b8a6",
   nat: "#8b5cf6",
   alb: "#f43f5e",

@@ -29,6 +29,7 @@ import type {
   ServiceKind,
   TgwResource,
   VpnResource,
+  BedrockResource,
 } from "../types";
 import {
   calculateFargateTaskHourly,
@@ -42,7 +43,7 @@ import {
 } from "../lib/calc";
 import { formatMoney, formatNumber, formatUsd } from "../lib/format";
 import { createDefaultResource } from "../lib/resources";
-import { ENV_META, SERVICE_ORDER, SERVICES } from "../lib/services";
+import { BEDROCK_MODELS, ENV_META, SERVICE_ORDER, SERVICES } from "../lib/services";
 import { Chip, NumberField, RangeField, Segmented, Stepper, Toggle, cn } from "./Primitives";
 
 interface ServiceDrawerProps {
@@ -207,7 +208,7 @@ export function ServiceDrawer({
                   서비스 카탈로그
                 </h2>
                 <p className="text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-                  15 services · real rates
+                  16 services · real rates
                 </p>
               </div>
             </>
@@ -268,6 +269,7 @@ export function ServiceDrawer({
               )}
               {draft.kind === "tgw" && <TgwFields resource={draft} onPatch={patch} />}
               {draft.kind === "vpn" && <VpnFields resource={draft} onPatch={patch} />}
+              {draft.kind === "bedrock" && <BedrockFields resource={draft} onPatch={patch} />}
               {draft.kind === "dataTransfer" && (
                 <TransferFields resource={draft} pricing={pricing} onPatch={patch} />
               )}
@@ -290,7 +292,7 @@ export function ServiceDrawer({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="EC2, ECS, RDS, DynamoDB, TGW, VPN, ELB 검색…"
+                  placeholder="EC2, ECS, Bedrock, RDS, DynamoDB, TGW, VPN 검색…"
                   aria-label="서비스 검색"
                   className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
                 />
@@ -1771,7 +1773,8 @@ function VpnFields({
   resource: VpnResource;
   onPatch: (values: Record<string, unknown>) => void;
 }) {
-  const hourlyRate = 0.05 + (resource.accelerated ? 0.05 : 0);
+  const isAccelerated = Boolean(resource.accelerated);
+  const hourlyRate = 0.05 + (isAccelerated ? 0.05 : 0);
 
   return (
     <>
@@ -1794,10 +1797,14 @@ function VpnFields({
       </div>
 
       <Toggle
-        checked={resource.accelerated}
+        checked={isAccelerated}
         onChange={(accelerated) => onPatch({ accelerated })}
         label="가속화 VPN (Accelerated Site-to-Site VPN)"
-        hint="AWS Global Accelerator 엣지 네트워크 경유 · 연결당 +$0.05/시간 추가"
+        hint={
+          isAccelerated
+            ? "가속 활성화됨 · AWS Global Accelerator 엣지 경유 ($0.10/연결-시간)"
+            : "AWS Global Accelerator 엣지 네트워크 경유 · 연결당 +$0.05/시간 추가"
+        }
       />
 
       <RangeField
@@ -1820,6 +1827,85 @@ function VpnFields({
         step={50}
         unit="GB"
       />
+    </>
+  );
+}
+
+/* ---------------------------- Amazon Bedrock ------------------------------ */
+
+function BedrockFields({
+  resource,
+  onPatch,
+}: {
+  resource: BedrockResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+  const factor = getRegionalFactor(resource.regionId);
+  const inputRate = model.inputPerMillionUsd * factor;
+  const outputRate = model.outputPerMillionUsd * factor;
+
+  return (
+    <>
+      <div>
+        <SectionLabel hint={`${model.provider} 모델`}>파운데이션 모델 (Foundation Model)</SectionLabel>
+        <div className="relative">
+          <select
+            value={resource.modelId}
+            onChange={(event) => onPatch({ modelId: event.target.value })}
+            className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
+          >
+            {Object.values(BEDROCK_MODELS).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.provider}) · 입 ${m.inputPerMillionUsd} / 출 ${m.outputPerMillionUsd} per 1M
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={15}
+            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400"
+          />
+        </div>
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{model.description}</p>
+        <p className="mt-1 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
+          단가 기준: 입력 {formatUsd(inputRate, 2)}/1M 토큰 · 출력 {formatUsd(outputRate, 2)}/1M 토큰
+          {factor !== 1 && ` (리전 계수 ${factor.toFixed(2)}배 적용됨)`}
+        </p>
+      </div>
+
+      <RangeField
+        label="월간 입력 토큰 (Input Tokens)"
+        hint={`프롬프트 및 컨텍스트 · 약 ${(resource.monthlyInputTokensM * 100).toFixed(0)}만 토큰`}
+        value={resource.monthlyInputTokensM}
+        onChange={(monthlyInputTokensM) => onPatch({ monthlyInputTokensM })}
+        min={0}
+        max={500}
+        step={0.5}
+        unit="M 토큰"
+        format={(v) => formatNumber(v, 1)}
+      />
+
+      <RangeField
+        label="월간 출력 토큰 (Output Tokens)"
+        hint={`모델 생성 답변 · 약 ${(resource.monthlyOutputTokensM * 100).toFixed(0)}만 토큰`}
+        value={resource.monthlyOutputTokensM}
+        onChange={(monthlyOutputTokensM) => onPatch({ monthlyOutputTokensM })}
+        min={0}
+        max={200}
+        step={0.5}
+        unit="M 토큰"
+        format={(v) => formatNumber(v, 1)}
+      />
+
+      <div className="rounded-xl border border-zinc-200/80 bg-white p-3.5 dark:border-white/[0.07] dark:bg-white/[0.03]">
+        <p className="text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
+          토큰 및 멀티 리전 팁
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+          1M(100만) 토큰은 약 75만 영문 단어(A4 약 1,500장) 또는 150만 자의 한국어 텍스트에 해당합니다.
+          Claude 3.5 Sonnet 풀 스펙 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
+        </p>
+      </div>
     </>
   );
 }

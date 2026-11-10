@@ -4,6 +4,7 @@ import {
   getGravitonEquivalent,
   getRdsGravitonEquivalent,
   getRegion,
+  getTgwAttachmentHourly,
 } from "./calc";
 
 export type InsightTone = "amber" | "emerald" | "indigo";
@@ -278,6 +279,26 @@ export function buildInsights(
       body: "오리진 직접 아웃바운드 대신 CloudFront를 앞단에 두면 월 1TB 무료 전송과 더 낮은 엣지 단가를 적용받을 수 있습니다.",
       savingsUsd: transferCost * 0.22,
       tone: "amber",
+    });
+  }
+
+  // 9. Transit Gateway with few attachments -> VPC Peering
+  const smallTgws = resources.filter((r) => r.kind === "tgw" && r.qty <= 3);
+  if (smallTgws.length > 0) {
+    const attachmentSavings = smallTgws.reduce(
+      (acc, r) =>
+        acc +
+        (r.kind === "tgw"
+          ? r.qty * r.hours * getTgwAttachmentHourly(r.regionId)
+          : 0),
+      0,
+    );
+    insights.push({
+      id: "tgw-peering",
+      title: "소규모 VPC 간 연결은 VPC Peering으로 어태치먼트 기본료 절감",
+      body: "연결 대상 VPC가 2~3개 이하이고 중앙 라우팅이 필수가 아니라면 VPC Peering(시간당 기본료 $0)으로 어태치먼트 고정비를 100% 절감할 수 있습니다.",
+      savingsUsd: attachmentSavings,
+      tone: "emerald",
     });
   }
 

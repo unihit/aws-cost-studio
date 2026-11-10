@@ -11,7 +11,9 @@ export type ServiceKind =
   | "lambda"
   | "eks"
   | "ecs"
-  | "dynamodb";
+  | "dynamodb"
+  | "tgw"
+  | "vpn";
 
 export type Category = "compute" | "database" | "storage" | "network";
 
@@ -158,6 +160,21 @@ export interface DynamoDbResource extends BaseResource {
   includeFreeTier: boolean;
 }
 
+export interface TgwResource extends BaseResource {
+  kind: "tgw";
+  qty: number;
+  hours: number;
+  dataProcessedGb: number;
+}
+
+export interface VpnResource extends BaseResource {
+  kind: "vpn";
+  qty: number;
+  hours: number;
+  accelerated: boolean;
+  dataOutGb: number;
+}
+
 export type Resource =
   | Ec2Resource
   | EbsResource
@@ -171,7 +188,9 @@ export type Resource =
   | LambdaResource
   | EksResource
   | EcsResource
-  | DynamoDbResource;
+  | DynamoDbResource
+  | TgwResource
+  | VpnResource;
 
 export interface Rate {
   price: number;

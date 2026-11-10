@@ -13,7 +13,7 @@
 - **AWS 공식 Pricing Calculator 실측 요율 연동 & 8대 리전 비교 매트릭스**:
   - `ap-northeast-2 (서울)`을 포함한 8대 핵심 리전(`서울`, `도쿄`, `싱가포르`, `시드니`, `버지니아`, `오리건`, `프랑크푸르트`, `아일랜드`)의 최신 온디맨드 단가 데이터 내장
   - **8대 글로벌 리전 실시간 비용 비교 매트릭스**: 현재 아키텍처의 리전별 총액 및 최저가 절감률을 한눈에 비교하고 원클릭 일괄 전환 지원
-- **13개 핵심 인프라 서비스 정밀 산출**:
+- **15개 핵심 인프라 서비스 정밀 산출**:
   - **Amazon ECS (AWS Fargate)**: 서버리스 컨테이너 태스크(vCPU / Memory 규격), Arm64(Graviton 20% 할인) vs x86_64, Fargate Spot(최대 70% 할인), 20GB 초과 임시 스토리지(Ephemeral Storage), 태스크 수량 및 월간 가동 시간 정밀 계산
   - **Amazon EC2**: Graviton(`t4g`, `m6g`, `c7g`, `r7g`), Intel(`m6i`, `c6i`), GPU(`g4dn`, `g5`) 등 최신 인스턴스 패밀리 및 월간 가동률(%) 반영
   - **Amazon EBS**: gp3, io2 볼륨 스토리지 요금 및 프로비저닝 IOPS / Throughput 할증 정밀 계산
@@ -26,6 +26,8 @@
   - **Amazon CloudFront**: 매월 1TB 무료 아웃바운드 및 1,000만 건 무료 HTTPS 요청 티어가 반영된 글로벌 엣지 CDN 비용
   - **NAT Gateway**: 인스턴스 시간당 요금 + 처리 데이터(GB) 비용
   - **Elastic Load Balancing (ALB / NLB)**: L7 Application Load Balancer(LCU) 및 초저지연 L4 Network Load Balancer(NLCU · 25% 저렴) 시간당 기본 요금과 용량 단위 통합 계산
+  - **AWS Transit Gateway (TGW)**: 리전별 Attachment 시간당 요금(서울/도쿄 $0.07/h, 미국 $0.05/h, 유럽/아시아 $0.06/h) 및 처리 데이터($0.02/GB) 비용
+  - **AWS Site-to-Site VPN**: IPsec VPN 연결 시간당 기본 요금($0.05/h · 이중화 터널 2개 포함), Global Accelerator 기반 가속화 VPN(+$0.05/h) 옵션 및 아웃바운드 데이터 전송 비용
   - **Data Transfer**: 인터넷 아웃바운드 구간별(10TB, 40TB, 100TB) 티어링 요율 자동 적용
 - **약정 할인 모델 · AWS Support 플랜 · 부가세(VAT 10%) 통합 계산**:
   - 온디맨드 정가 대비 1년·3년 Savings Plans / Reserved Instances 절감액 즉시 비교

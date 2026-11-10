@@ -27,6 +27,8 @@ import type {
   Resource,
   S3Resource,
   ServiceKind,
+  TgwResource,
+  VpnResource,
 } from "../types";
 import {
   calculateFargateTaskHourly,
@@ -35,6 +37,7 @@ import {
   getElastiCacheHourlyRate,
   getRegion,
   getRegionalFactor,
+  getTgwAttachmentHourly,
   rdsGp3FreeBaseline,
 } from "../lib/calc";
 import { formatMoney, formatNumber, formatUsd } from "../lib/format";
@@ -204,7 +207,7 @@ export function ServiceDrawer({
                   서비스 카탈로그
                 </h2>
                 <p className="text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-                  13 services · real rates
+                  15 services · real rates
                 </p>
               </div>
             </>
@@ -263,6 +266,8 @@ export function ServiceDrawer({
               {draft.kind === "alb" && (
                 <AlbFields resource={draft} pricing={pricing} onPatch={patch} />
               )}
+              {draft.kind === "tgw" && <TgwFields resource={draft} onPatch={patch} />}
+              {draft.kind === "vpn" && <VpnFields resource={draft} onPatch={patch} />}
               {draft.kind === "dataTransfer" && (
                 <TransferFields resource={draft} pricing={pricing} onPatch={patch} />
               )}
@@ -285,7 +290,7 @@ export function ServiceDrawer({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="EC2, RDS, ElastiCache, EKS, Lambda, CloudFront 검색…"
+                  placeholder="EC2, ECS, RDS, DynamoDB, TGW, VPN, ELB 검색…"
                   aria-label="서비스 검색"
                   className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
                 />
@@ -293,7 +298,7 @@ export function ServiceDrawer({
 
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
-                  {query ? `검색 결과 ${filteredServices.length}개` : "서비스 선택 (11종)"}
+                  {query ? `검색 결과 ${filteredServices.length}개` : `서비스 선택 (${SERVICE_ORDER.length}종)`}
                 </p>
                 <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-600">
                   <MapPin size={10} />
@@ -1697,6 +1702,123 @@ function AlbFields({
         step={0.5}
         unit={cuName}
         format={(value) => formatNumber(value, 1)}
+      />
+    </>
+  );
+}
+
+/* ---------------------------- Transit Gateway ----------------------------- */
+
+function TgwFields({
+  resource,
+  onPatch,
+}: {
+  resource: TgwResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const attachRate = getTgwAttachmentHourly(resource.regionId);
+
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+            TGW 연결 수 (Attachments)
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
+            연결된 VPC · VPN · Direct Connect Gateway 개수 ({formatUsd(attachRate, 2)}/연결-시간)
+          </p>
+        </div>
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={200}
+          onChange={(qty) => onPatch({ qty })}
+          label="TGW 연결 수량"
+        />
+      </div>
+
+      <RangeField
+        label="월간 가동 시간"
+        hint="AWS 표준 연평균 730h · 31일 기준 최대 744h"
+        value={resource.hours}
+        onChange={(hours) => onPatch({ hours })}
+        min={1}
+        max={744}
+        unit="h"
+      />
+
+      <RangeField
+        label="월간 처리 데이터 (Data Processed)"
+        hint="Transit Gateway로 전송된 총 트래픽 · GB당 $0.02 과금"
+        value={resource.dataProcessedGb}
+        onChange={(dataProcessedGb) => onPatch({ dataProcessedGb })}
+        min={0}
+        max={102400}
+        step={50}
+        unit="GB"
+      />
+    </>
+  );
+}
+
+/* --------------------------- Site-to-Site VPN ----------------------------- */
+
+function VpnFields({
+  resource,
+  onPatch,
+}: {
+  resource: VpnResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const hourlyRate = 0.05 + (resource.accelerated ? 0.05 : 0);
+
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+            Site-to-Site VPN 연결 수
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">
+            연결 1개당 이중화 IPsec 터널 2개 기본 포함 ({formatUsd(hourlyRate, 2)}/연결-시간)
+          </p>
+        </div>
+        <Stepper
+          value={resource.qty}
+          min={1}
+          max={99}
+          onChange={(qty) => onPatch({ qty })}
+          label="VPN 연결 수량"
+        />
+      </div>
+
+      <Toggle
+        checked={resource.accelerated}
+        onChange={(accelerated) => onPatch({ accelerated })}
+        label="가속화 VPN (Accelerated Site-to-Site VPN)"
+        hint="AWS Global Accelerator 엣지 네트워크 경유 · 연결당 +$0.05/시간 추가"
+      />
+
+      <RangeField
+        label="월간 가동 시간"
+        hint="AWS 표준 연평균 730h · 31일 기준 최대 744h"
+        value={resource.hours}
+        onChange={(hours) => onPatch({ hours })}
+        min={1}
+        max={744}
+        unit="h"
+      />
+
+      <RangeField
+        label="VPN 아웃바운드 데이터 전송"
+        hint="AWS → 온프레미스 송신 트래픽 (리전 인터넷 아웃바운드 구간 요율 적용 · 인바운드 무료)"
+        value={resource.dataOutGb}
+        onChange={(dataOutGb) => onPatch({ dataOutGb })}
+        min={0}
+        max={50000}
+        step={50}
+        unit="GB"
       />
     </>
   );

@@ -25,6 +25,8 @@ const VALID_KINDS: ServiceKind[] = [
   "cloudfront",
   "nat",
   "alb",
+  "tgw",
+  "vpn",
   "dataTransfer",
 ];
 
@@ -430,6 +432,23 @@ export function parseImportedResources(raw: unknown): Resource[] {
             qty: Math.max(1, num(item.qty, 1)),
             hours: Math.min(744, Math.max(1, num(item.hours, 730))),
             lcu: Math.max(0, num(item.lcu, 1)),
+          };
+        case "tgw":
+          return {
+            ...b,
+            kind,
+            qty: Math.max(1, num(item.qty, 3)),
+            hours: Math.min(744, Math.max(1, num(item.hours, 730))),
+            dataProcessedGb: Math.max(0, num(item.dataProcessedGb, 500)),
+          };
+        case "vpn":
+          return {
+            ...b,
+            kind,
+            qty: Math.max(1, num(item.qty, 1)),
+            hours: Math.min(744, Math.max(1, num(item.hours, 730))),
+            accelerated: Boolean(item.accelerated),
+            dataOutGb: Math.max(0, num(item.dataOutGb, 100)),
           };
         case "dataTransfer":
           return { ...b, kind, gbOut: Math.max(0, num(item.gbOut, 0)) };

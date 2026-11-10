@@ -106,6 +106,10 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
       return { ...base, kind, qty: 1, hours: 730, dataGb: 100 };
     case "alb":
       return { ...base, kind, lbType: "alb", qty: 1, hours: 730, lcu: 1 };
+    case "tgw":
+      return { ...base, kind, qty: 3, hours: 730, dataProcessedGb: 500 };
+    case "vpn":
+      return { ...base, kind, qty: 1, hours: 730, accelerated: false, dataOutGb: 100 };
     case "dataTransfer":
       return { ...base, kind, gbOut: 1024 };
   }
@@ -285,6 +289,19 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         `${formatNumber(resource.lcu)} ${isNlb ? "NLCU" : "LCU"}`,
       ];
     }
+    case "tgw":
+      return [
+        `어태치먼트 ${resource.qty}개`,
+        `${formatNumber(resource.hours)}시간`,
+        `데이터 처리 ${formatNumber(resource.dataProcessedGb)} GB`,
+      ];
+    case "vpn":
+      return [
+        resource.accelerated ? "가속 VPN (Global Accelerator)" : "표준 IPsec VPN",
+        `연결 ${resource.qty}개 (터널 ${resource.qty * 2}개)`,
+        `${formatNumber(resource.hours)}시간`,
+        `아웃바운드 ${formatNumber(resource.dataOutGb)} GB`,
+      ];
     case "dataTransfer":
       return [`${formatNumber(resource.gbOut / 1024, 2)} TB 아웃바운드`];
     default:
@@ -319,6 +336,10 @@ export function resourceIconLabel(resource: Resource): string {
       return "NAT";
     case "alb":
       return resource.lbType === "nlb" ? "NLB" : "ALB";
+    case "tgw":
+      return "TGW";
+    case "vpn":
+      return "S2S VPN";
     case "dataTransfer":
       return "OUT";
     default:

@@ -42,6 +42,8 @@ const EMPTY_KINDS = (): Record<ServiceKind, number> => ({
   cloudfront: 0,
   nat: 0,
   alb: 0,
+  tgw: 0,
+  vpn: 0,
   dataTransfer: 0,
 });
 
@@ -97,6 +99,12 @@ export function getRegionalFactor(regionId: string): number {
     "ap-southeast-2": 1.18,
   };
   return factors[regionId] ?? 1.12;
+}
+
+export function getTgwAttachmentHourly(regionId: string): number {
+  if (regionId === "us-east-1" || regionId === "us-west-2") return 0.05;
+  if (regionId === "ap-northeast-2" || regionId === "ap-northeast-1") return 0.07;
+  return 0.06;
 }
 
 export function getElastiCacheHourlyRate(
@@ -355,6 +363,18 @@ export function calculateResource(
         resource.qty * resource.lcu * resource.hours * cuRate
       );
     }
+    case "tgw": {
+      const attachmentHourly = getTgwAttachmentHourly(resource.regionId);
+      const attachmentCost = resource.qty * resource.hours * attachmentHourly;
+      const dataCost = resource.dataProcessedGb * 0.02;
+      return attachmentCost + dataCost;
+    }
+    case "vpn": {
+      const connHourly = resource.accelerated ? 0.1 : 0.05;
+      const connCost = resource.qty * resource.hours * connHourly;
+      const dtoCost = dataTransferMonthly(region, resource.dataOutGb);
+      return connCost + dtoCost;
+    }
     case "dataTransfer":
       return dataTransferMonthly(region, resource.gbOut);
     default:
@@ -489,6 +509,10 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
       const cuLabel = isNlb ? "NLCU" : "LCU";
       return `${typeLabel} · ${resource.qty}개 · ${formatNumber(resource.hours)}h · ${cuLabel} ${resource.lcu}`;
     }
+    case "tgw":
+      return `어태치먼트 ${resource.qty}개 · ${formatNumber(resource.hours)}h · 처리 ${formatNumber(resource.dataProcessedGb)} GB`;
+    case "vpn":
+      return `${resource.accelerated ? "가속 VPN" : "표준 IPsec"} · 연결 ${resource.qty}개(터널 ${resource.qty * 2}개) · ${formatNumber(resource.hours)}h · 송신 ${formatNumber(resource.dataOutGb)} GB`;
     case "dataTransfer":
       return `${formatNumber(resource.gbOut / 1024, 1)} TB /월 아웃바운드`;
     default:

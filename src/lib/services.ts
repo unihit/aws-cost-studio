@@ -5,9 +5,11 @@ import {
   Container,
   Cpu,
   Database,
+  GitMerge,
   Globe,
   HardDrive,
   Layers,
+  Lock,
   Network,
   Server,
   Table2,
@@ -148,6 +150,26 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
     accent: "text-rose-500",
     tile: "bg-rose-500/10 text-rose-500 ring-rose-500/20",
   },
+  tgw: {
+    kind: "tgw",
+    title: "AWS Transit Gateway",
+    eyebrow: "Enterprise Hub Router",
+    description: "멀티 VPC·온프레미스 연결 어태치먼트 시간당 요금과 라우팅 데이터 처리(GB) 비용을 계산합니다.",
+    icon: GitMerge,
+    category: "network",
+    accent: "text-purple-500",
+    tile: "bg-purple-500/10 text-purple-500 ring-purple-500/20",
+  },
+  vpn: {
+    kind: "vpn",
+    title: "AWS Site-to-Site VPN",
+    eyebrow: "Hybrid IPsec VPN",
+    description: "온프레미스/IDC 연동 IPsec VPN 연결 시간당 요금($0.05/h), 가속 옵션, 아웃바운드 트래픽을 계산합니다.",
+    icon: Lock,
+    category: "network",
+    accent: "text-lime-600",
+    tile: "bg-lime-500/10 text-lime-600 ring-lime-500/20",
+  },
   dataTransfer: {
     kind: "dataTransfer",
     title: "Data Transfer",
@@ -173,6 +195,8 @@ export const SERVICE_ORDER: ServiceKind[] = [
   "cloudfront",
   "alb",
   "nat",
+  "tgw",
+  "vpn",
   "dataTransfer",
 ];
 
@@ -196,6 +220,8 @@ export const SERVICE_COLORS: Record<ServiceKind, string> = {
   cloudfront: "#14b8a6",
   nat: "#8b5cf6",
   alb: "#f43f5e",
+  tgw: "#a855f7",
+  vpn: "#65a30d",
   dataTransfer: "#06b6d4",
 };
 

@@ -144,3 +144,18 @@
     scroll-behavior: auto !important;
   }
 }
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #18181b !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  article,
+  section {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+}

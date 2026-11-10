@@ -6,8 +6,9 @@ import type {
   PurchaseOption,
   Resource,
   ServiceKind,
+  SupportPlan,
 } from "../types";
-import { ENV_META, PURCHASE_OPTIONS, SERVICES } from "./services";
+import { ENV_META, PURCHASE_OPTIONS, SERVICES, SUPPORT_PLANS } from "./services";
 import { formatMoney, formatUsd } from "./format";
 import { getRegion, resourceDetail } from "./calc";
 
@@ -15,6 +16,7 @@ const VALID_KINDS: ServiceKind[] = [
   "ec2",
   "ebs",
   "rds",
+  "dynamodb",
   "elasticache",
   "s3",
   "lambda",
@@ -35,10 +37,14 @@ export function buildMarkdownReport(
   fx: number,
   pricing: PricingData,
   purchaseOption: PurchaseOption = "onDemand",
+  supportPlan: SupportPlan = "basic",
+  includeVat = false,
 ): string {
   const now = new Date().toLocaleString("ko-KR", { dateStyle: "long", timeStyle: "short" });
   const purchaseMeta =
     PURCHASE_OPTIONS.find((item) => item.value === purchaseOption) ?? PURCHASE_OPTIONS[0];
+  const supportMeta =
+    SUPPORT_PLANS.find((item) => item.value === supportPlan) ?? SUPPORT_PLANS[0];
   const rows = resources.map((resource, index) => {
     const region = getRegion(pricing, resource.regionId);
     const line = summary.lines.find((l) => l.id === resource.id);
@@ -60,14 +66,21 @@ export function buildMarkdownReport(
     "# AWS Cost Studio 견적 리포트",
     "",
     `> 생성일: ${now}`,
-    `> 요금 모델: ${purchaseMeta.label}`,
+    `> 요금 모델: ${purchaseMeta.label} · Support: ${supportMeta.label} · 부가세(VAT): ${includeVat ? "10% 포함" : "미포함"}`,
     `> 통화: ${currency} · 참고 환율: 1 USD = ${fx.toLocaleString("ko-KR")} KRW`,
     `> 산출 기준: 월 730시간 · AWS Pricing Calculator 실측 요율`,
     "",
     "## 월간 요약",
     "",
-    `- **월 예상 비용: ${formatMoney(summary.monthlyUsd, currency, fx)}**`,
+    `- **월 최종 예상 비용: ${formatMoney(summary.monthlyUsd, currency, fx)}**`,
     `- 연 예상 비용: ${formatMoney(summary.annualUsd, currency, fx)}`,
+    `- 리소스 소계: ${formatMoney(summary.subtotalUsd, currency, fx)}`,
+    ...(summary.supportUsd > 0
+      ? [`- AWS Support (${supportMeta.shortLabel}): ${formatMoney(summary.supportUsd, currency, fx)}`]
+      : []),
+    ...(summary.vatUsd > 0
+      ? [`- 부가세 (VAT 10%): ${formatMoney(summary.vatUsd, currency, fx)}`]
+      : []),
     ...(spDiscountLine ? [spDiscountLine] : []),
     `- 리소스 수: ${resources.length}개`,
     "",
@@ -86,7 +99,7 @@ export function buildMarkdownReport(
           { compute: "Compute", database: "Database", storage: "Storage", network: "Network" }[
             key
           ] ?? key;
-        const pct = summary.monthlyUsd ? ((value / summary.monthlyUsd) * 100).toFixed(1) : "0.0";
+        const pct = summary.subtotalUsd ? ((value / summary.subtotalUsd) * 100).toFixed(1) : "0.0";
         return `- ${label}: ${formatUsd(value)} (${pct}%)`;
       }),
     "",
@@ -95,21 +108,150 @@ export function buildMarkdownReport(
   ].join("\n");
 }
 
+function escapeCsvCell(value: string | number): string {
+  const strVal = String(value ?? "");
+  if (/[",\n\r]/.test(strVal)) {
+    return `"${strVal.replace(/"/g, '""')}"`;
+  }
+  return strVal;
+}
+
+export function downloadCsv(
+  resources: Resource[],
+  summary: CostSummary,
+  fx: number,
+  pricing: PricingData,
+  purchaseOption: PurchaseOption = "onDemand",
+  supportPlan: SupportPlan = "basic",
+  includeVat = false,
+): void {
+  const headers = [
+    "번호",
+    "환경(ENV)",
+    "카테고리",
+    "서비스",
+    "별칭(메모)",
+    "리전",
+    "상세 사양",
+    "월 비용(USD)",
+    "월 비용(KRW)",
+  ];
+
+  const rows: (string | number)[][] = resources.map((resource, index) => {
+    const region = getRegion(pricing, resource.regionId);
+    const line = summary.lines.find((l) => l.id === resource.id);
+    const usd = line?.monthlyUsd ?? 0;
+    const krw = Math.round(usd * fx);
+    return [
+      index + 1,
+      resource.env ? ENV_META[resource.env].label : "-",
+      SERVICES[resource.kind].category.toUpperCase(),
+      SERVICES[resource.kind].title,
+      resource.label ?? "-",
+      `${region.label} (${region.id})`,
+      resourceDetail(resource, pricing),
+      usd.toFixed(2),
+      krw,
+    ];
+  });
+
+  rows.push([]);
+  rows.push(["", "", "", "요약 항목", "설정값", "", "", "월 비용(USD)", "월 비용(KRW)"]);
+  rows.push([
+    "",
+    "",
+    "",
+    "리소스 소계 (Subtotal)",
+    purchaseOption,
+    "",
+    "",
+    summary.subtotalUsd.toFixed(2),
+    Math.round(summary.subtotalUsd * fx),
+  ]);
+  if (summary.supportUsd > 0) {
+    rows.push([
+      "",
+      "",
+      "",
+      "AWS Support 비용",
+      supportPlan.toUpperCase(),
+      "",
+      "",
+      summary.supportUsd.toFixed(2),
+      Math.round(summary.supportUsd * fx),
+    ]);
+  }
+  if (summary.vatUsd > 0 || includeVat) {
+    rows.push([
+      "",
+      "",
+      "",
+      "부가세 (VAT 10%)",
+      "10%",
+      "",
+      "",
+      summary.vatUsd.toFixed(2),
+      Math.round(summary.vatUsd * fx),
+    ]);
+  }
+  rows.push([
+    "",
+    "",
+    "",
+    "월 최종 합계 (Total Monthly)",
+    `환율 1 USD = ${fx} KRW`,
+    "",
+    "",
+    summary.monthlyUsd.toFixed(2),
+    Math.round(summary.monthlyUsd * fx),
+  ]);
+  rows.push([
+    "",
+    "",
+    "",
+    "연간 예상 합계 (Total Annual)",
+    "12개월 기준",
+    "",
+    "",
+    summary.annualUsd.toFixed(2),
+    Math.round(summary.annualUsd * fx),
+  ]);
+
+  const csvContent =
+    "\uFEFF" +
+    [headers, ...rows].map((row) => row.map((cell) => escapeCsvCell(cell)).join(",")).join("\r\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `aws-cost-studio-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function downloadJson(
   resources: Resource[],
   currency: Currency,
   fx: number,
   summary: CostSummary,
   purchaseOption: PurchaseOption = "onDemand",
+  supportPlan: SupportPlan = "basic",
+  includeVat = false,
 ): void {
   const payload = {
     app: "aws-cost-studio",
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     currency,
     fxKrwPerUsd: fx,
     purchaseOption,
+    supportPlan,
+    includeVat,
     summary: {
+      subtotalUsd: Number(summary.subtotalUsd.toFixed(4)),
+      supportUsd: Number(summary.supportUsd.toFixed(4)),
+      vatUsd: Number(summary.vatUsd.toFixed(4)),
       monthlyUsd: Number(summary.monthlyUsd.toFixed(4)),
       annualUsd: Number(summary.annualUsd.toFixed(4)),
     },
@@ -178,6 +320,8 @@ export function parseImportedResources(raw: unknown): Resource[] {
             ...b,
             kind,
             engine: item.engine === "mysql" ? "mysql" : "postgres",
+            deploymentMode: item.deploymentMode === "serverlessV2" ? "serverlessV2" : "instance",
+            acu: Math.max(0.5, Math.min(128, num(item.acu, 2))),
             instanceType: str(item.instanceType, "db.t4g.micro"),
             multiAz: Boolean(item.multiAz),
             storageGb: Math.max(20, num(item.storageGb, 20)),
@@ -187,6 +331,16 @@ export function parseImportedResources(raw: unknown): Resource[] {
             iops: Math.max(0, num(item.iops, 3000)),
             throughput: Math.max(0, num(item.throughput, 125)),
             qty: Math.max(1, num(item.qty, 1)),
+          };
+        case "dynamodb":
+          return {
+            ...b,
+            kind,
+            capacityMode: item.capacityMode === "provisioned" ? "provisioned" : "onDemand",
+            storageGb: Math.max(0, num(item.storageGb, 50)),
+            writeUnits: Math.max(0, num(item.writeUnits, 10)),
+            readUnits: Math.max(0, num(item.readUnits, 50)),
+            includeFreeTier: item.includeFreeTier !== false,
           };
         case "elasticache":
           return {
@@ -293,6 +447,8 @@ export interface SharedState {
   currency?: Currency;
   fx?: number;
   purchaseOption?: PurchaseOption;
+  supportPlan?: SupportPlan;
+  includeVat?: boolean;
 }
 
 export function encodeShareUrl(state: SharedState): string {
@@ -301,6 +457,8 @@ export function encodeShareUrl(state: SharedState): string {
     c: state.currency,
     f: state.fx,
     p: state.purchaseOption,
+    sp: state.supportPlan,
+    v: state.includeVat,
   });
   const bytes = new TextEncoder().encode(payload);
   let binary = "";
@@ -330,6 +488,8 @@ export function decodeShareUrl(search: string): SharedState | null {
       c?: Currency;
       f?: number;
       p?: PurchaseOption;
+      sp?: SupportPlan;
+      v?: boolean;
     };
     const resources = parseImportedResources(decoded.r);
     return {
@@ -340,6 +500,11 @@ export function decodeShareUrl(search: string): SharedState | null {
         decoded.p === "onDemand" || decoded.p === "sp1yr" || decoded.p === "sp3yr"
           ? decoded.p
           : undefined,
+      supportPlan:
+        decoded.sp === "basic" || decoded.sp === "developer" || decoded.sp === "business"
+          ? decoded.sp
+          : undefined,
+      includeVat: typeof decoded.v === "boolean" ? decoded.v : undefined,
     };
   } catch {
     return null;

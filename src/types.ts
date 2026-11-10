@@ -10,13 +10,18 @@ export type ServiceKind =
   | "cloudfront"
   | "lambda"
   | "eks"
-  | "ecs";
+  | "ecs"
+  | "dynamodb";
 
 export type Category = "compute" | "database" | "storage" | "network";
 
 export type Currency = "USD" | "KRW";
 
 export type PurchaseOption = "onDemand" | "sp1yr" | "sp3yr";
+
+export type SupportPlan = "basic" | "developer" | "business";
+
+export type ResourceSort = "created" | "costDesc" | "costAsc" | "name";
 
 export type EnvTag = "prod" | "stage" | "dev";
 
@@ -58,6 +63,8 @@ export interface EbsResource extends BaseResource {
 export interface RdsResource extends BaseResource {
   kind: "rds";
   engine: "postgres" | "mysql";
+  deploymentMode?: "instance" | "serverlessV2";
+  acu?: number;
   instanceType: string;
   multiAz: boolean;
   storageGb: number;
@@ -142,6 +149,15 @@ export interface EcsResource extends BaseResource {
   ephemeralStorageGb: number;
 }
 
+export interface DynamoDbResource extends BaseResource {
+  kind: "dynamodb";
+  capacityMode: "onDemand" | "provisioned";
+  storageGb: number;
+  readUnits: number;
+  writeUnits: number;
+  includeFreeTier: boolean;
+}
+
 export type Resource =
   | Ec2Resource
   | EbsResource
@@ -154,7 +170,8 @@ export type Resource =
   | CloudFrontResource
   | LambdaResource
   | EksResource
-  | EcsResource;
+  | EcsResource
+  | DynamoDbResource;
 
 export interface Rate {
   price: number;
@@ -277,6 +294,9 @@ export interface CostLine {
 
 export interface CostSummary {
   lines: CostLine[];
+  subtotalUsd: number;
+  supportUsd: number;
+  vatUsd: number;
   monthlyUsd: number;
   annualUsd: number;
   onDemandMonthlyUsd: number;

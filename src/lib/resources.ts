@@ -23,6 +23,8 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
         ...base,
         kind,
         engine: "postgres",
+        deploymentMode: "instance",
+        acu: 2,
         instanceType: "db.t4g.micro",
         multiAz: false,
         storageGb: 20,
@@ -30,6 +32,16 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
         iops: 3000,
         throughput: 125,
         qty: 1,
+      };
+    case "dynamodb":
+      return {
+        ...base,
+        kind,
+        capacityMode: "onDemand",
+        storageGb: 50,
+        writeUnits: 10,
+        readUnits: 50,
+        includeFreeTier: true,
       };
     case "elasticache":
       return {
@@ -164,6 +176,14 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
       return badges;
     }
     case "rds": {
+      if (resource.deploymentMode === "serverlessV2") {
+        return [
+          `Aurora Serverless v2 (${resource.engine === "postgres" ? "PG" : "MySQL"})`,
+          `평균 ${resource.acu ?? 2} ACU`,
+          resource.multiAz ? "Multi-AZ" : "Single-AZ",
+          `${formatNumber(resource.storageGb)} GB Aurora 스토리지`,
+        ];
+      }
       const rate = region.rds[resource.engine].instance[resource.instanceType];
       const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
       const badges = [
@@ -187,6 +207,20 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         badges.push(`${formatNumber(resource.throughput ?? freeThroughput)} MB/s`);
       }
       return badges;
+    }
+    case "dynamodb": {
+      const modeBadge =
+        resource.capacityMode === "onDemand" ? "On-Demand (50%↓)" : "Provisioned";
+      const ioBadge =
+        resource.capacityMode === "onDemand"
+          ? `쓰기 ${resource.writeUnits}M · 읽기 ${resource.readUnits}M`
+          : `${resource.writeUnits} WCU · ${resource.readUnits} RCU`;
+      return [
+        modeBadge,
+        `${formatNumber(resource.storageGb)} GB 스토리지`,
+        ioBadge,
+        resource.includeFreeTier ? "25GB 무료 티어" : "무료 티어 제외",
+      ];
     }
     case "elasticache": {
       const spec = ELASTICACHE_NODES[resource.nodeType];
@@ -265,7 +299,10 @@ export function resourceIconLabel(resource: Resource): string {
     case "ebs":
       return resource.volumeType.toUpperCase();
     case "rds":
+      if (resource.deploymentMode === "serverlessV2") return "Aurora v2";
       return resource.engine === "postgres" ? "PostgreSQL" : "MySQL";
+    case "dynamodb":
+      return "DynamoDB";
     case "elasticache":
       return resource.engine === "valkey" ? "Valkey" : "Redis";
     case "s3":

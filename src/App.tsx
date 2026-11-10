@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { ArrowUpDown, Plus, Search, X } from "lucide-react";
 import pricingJson from "./data/pricing.json";
 import type {
   Category,
@@ -8,9 +8,11 @@ import type {
   PricingData,
   PurchaseOption,
   Resource,
+  ResourceSort,
   ServiceKind,
+  SupportPlan,
 } from "./types";
-import { calculateSummary } from "./lib/calc";
+import { calculateSummary, resourceDetail } from "./lib/calc";
 import { decodeShareUrl } from "./lib/export";
 import { formatMoney } from "./lib/format";
 import {
@@ -27,6 +29,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { Header } from "./components/Header";
 import { Hero } from "./components/Hero";
+import { RegionMatrix } from "./components/RegionMatrix";
 import { ResourceCard } from "./components/ResourceCard";
 import { EmptyState } from "./components/EmptyState";
 import { Insights } from "./components/Insights";
@@ -58,6 +61,13 @@ const ENV_FILTERS: { value: "all" | EnvTag; label: string }[] = [
   { value: "dev", label: "DEV" },
 ];
 
+const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
+  { value: "created", label: "추가순" },
+  { value: "costDesc", label: "비용 높은순" },
+  { value: "costAsc", label: "비용 낮은순" },
+  { value: "name", label: "이름순" },
+];
+
 interface DrawerState {
   open: boolean;
   initialKind: ServiceKind | null;
@@ -78,8 +88,17 @@ export default function App() {
     "acs.purchaseOption.v1",
     "onDemand",
   );
+  const [supportPlan, setSupportPlan] = useLocalStorage<SupportPlan>(
+    "acs.supportPlan.v1",
+    "basic",
+  );
+  const [includeVat, setIncludeVat] = useLocalStorage<boolean>("acs.includeVat.v1", false);
+  const [budgetUsd, setBudgetUsd] = useLocalStorage<number>("acs.budgetUsd.v1", 0);
+
   const [filter, setFilter] = useState<"all" | Category>("all");
   const [envFilter, setEnvFilter] = useState<"all" | EnvTag>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<ResourceSort>("created");
   const [drawer, setDrawer] = useState<DrawerState>(CLOSED_DRAWER);
   const { theme, toggle } = useTheme();
   const { toasts, push: pushToast, dismiss } = useToast();
@@ -92,33 +111,12 @@ export default function App() {
     if (shared.currency) setCurrency(shared.currency);
     if (shared.fx) setFx(shared.fx);
     if (shared.purchaseOption) setPurchaseOption(shared.purchaseOption);
+    if (shared.supportPlan) setSupportPlan(shared.supportPlan);
+    if (typeof shared.includeVat === "boolean") setIncludeVat(shared.includeVat);
     pushToast(`공유 링크에서 ${shared.resources.length}개 리소스 견적을 불러왔습니다.`, {
       tone: "success",
     });
   }, []);
-
-  const summary = useMemo(
-    () => calculateSummary(resources, pricing, purchaseOption),
-    [resources, purchaseOption],
-  );
-  const insights = useMemo(
-    () => buildInsights(resources, pricing, purchaseOption),
-    [resources, purchaseOption],
-  );
-  const savings = useMemo(() => totalPotentialSavings(insights), [insights]);
-
-  const filtered = useMemo(
-    () =>
-      resources.filter((resource) => {
-        const matchCategory =
-          filter === "all" || SERVICES[resource.kind].category === filter;
-        const matchEnv = envFilter === "all" || resource.env === envFilter;
-        return matchCategory && matchEnv;
-      }),
-    [resources, filter, envFilter],
-  );
-
-  const hasAnyEnvTag = useMemo(() => resources.some((r) => Boolean(r.env)), [resources]);
 
   const closeDrawer = useCallback(() => setDrawer(CLOSED_DRAWER), []);
   const openCatalog = useCallback(
@@ -130,11 +128,83 @@ export default function App() {
     [],
   );
 
+  // Global keyboard shortcuts (Ctrl+K or '/' to open service catalog)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openCatalog();
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const isEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if (!isEditable && !drawer.open && event.key === "/") {
+        event.preventDefault();
+        openCatalog();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openCatalog, drawer.open]);
+
+  const summary = useMemo(
+    () => calculateSummary(resources, pricing, purchaseOption, supportPlan, includeVat),
+    [resources, purchaseOption, supportPlan, includeVat],
+  );
+  const insights = useMemo(
+    () => buildInsights(resources, pricing, purchaseOption),
+    [resources, purchaseOption],
+  );
+  const savings = useMemo(() => totalPotentialSavings(insights), [insights]);
+
+  const costById = useMemo(
+    () => Object.fromEntries(summary.lines.map((line) => [line.id, line.monthlyUsd])),
+    [summary.lines],
+  );
+
+  const filtered = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    const list = resources.filter((resource) => {
+      const matchCategory =
+        filter === "all" || SERVICES[resource.kind].category === filter;
+      const matchEnv = envFilter === "all" || resource.env === envFilter;
+      if (!matchCategory || !matchEnv) return false;
+      if (!needle) return true;
+      const meta = SERVICES[resource.kind];
+      const detail = resourceDetail(resource, pricing);
+      const haystack = `${resource.label ?? ""} ${meta.title} ${meta.eyebrow} ${detail} ${resource.regionId}`.toLowerCase();
+      return haystack.includes(needle);
+    });
+
+    if (sortBy === "costDesc") {
+      return [...list].sort((a, b) => (costById[b.id] ?? 0) - (costById[a.id] ?? 0));
+    }
+    if (sortBy === "costAsc") {
+      return [...list].sort((a, b) => (costById[a.id] ?? 0) - (costById[b.id] ?? 0));
+    }
+    if (sortBy === "name") {
+      return [...list].sort((a, b) => {
+        const nameA = a.label || SERVICES[a.kind].title;
+        const nameB = b.label || SERVICES[b.kind].title;
+        return nameA.localeCompare(nameB, "ko-KR");
+      });
+    }
+    return list;
+  }, [resources, filter, envFilter, searchQuery, sortBy, costById]);
+
+  const hasAnyEnvTag = useMemo(() => resources.some((r) => Boolean(r.env)), [resources]);
+
   const handleBulkMigrateRegion = useCallback(
     (targetRegionId: string) => {
       const snapshot = resources;
       const next = resources.map((r) => migrateResourceToRegion(r, targetRegionId, pricing));
       setResources(next);
+      setRegionId(targetRegionId);
       const regionLabel =
         pricing.meta.regions.find((r) => r.id === targetRegionId)?.label ?? targetRegionId;
       pushToast(`모든 리소스(${resources.length}개)의 리전을 ${regionLabel}(으)로 일괄 변경했습니다.`, {
@@ -143,7 +213,7 @@ export default function App() {
         onAction: () => setResources(snapshot),
       });
     },
-    [resources, setResources, pushToast],
+    [resources, setResources, setRegionId, pushToast],
   );
 
   const handleRegionChange = useCallback(
@@ -362,7 +432,22 @@ export default function App() {
         onApplyPreset={applyPreset}
       />
 
-      <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[1440px] space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        {resources.length > 0 && (
+          <RegionMatrix
+            resources={resources}
+            pricing={pricing}
+            currentMonthlyUsd={summary.monthlyUsd}
+            activeRegionId={regionId}
+            purchaseOption={purchaseOption}
+            supportPlan={supportPlan}
+            includeVat={includeVat}
+            currency={currency}
+            fx={fx}
+            onMigrateAll={handleBulkMigrateRegion}
+          />
+        )}
+
         <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
           <section className="space-y-4 lg:col-span-8">
             <div id="resources" className="scroll-mt-24 flex flex-wrap items-end justify-between gap-3">
@@ -390,56 +475,111 @@ export default function App() {
                 <button
                   type="button"
                   onClick={openCatalog}
-                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-[11px] font-semibold text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
+                  title="서비스 추가 (Ctrl+K 또는 /)"
+                  className="no-print inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-[11px] font-semibold text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
                 >
                   <Plus size={13} />
                   추가
+                  <kbd className="ml-1 hidden rounded border border-zinc-200 bg-zinc-50 px-1 py-0.5 font-mono text-[9px] text-zinc-400 sm:inline-block dark:border-white/10 dark:bg-white/5">
+                    Ctrl+K
+                  </kbd>
                 </button>
               </div>
             </div>
 
             {resources.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {FILTERS.map((item) => (
-                    <Chip
-                      key={item.value}
-                      active={filter === item.value}
-                      onClick={() => setFilter(item.value)}
-                    >
-                      {item.label}
-                      {item.value !== "all" && (
-                        <span className="ml-1 text-[9px] opacity-60">
-                          {
-                            resources.filter(
-                              (resource) => SERVICES[resource.kind].category === item.value,
-                            ).length
-                          }
-                        </span>
-                      )}
-                    </Chip>
-                  ))}
-                </div>
-
-                {hasAnyEnvTag && (
-                  <div className="flex items-center gap-1">
-                    {ENV_FILTERS.map((item) => (
-                      <button
+              <div className="no-print space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {FILTERS.map((item) => (
+                      <Chip
                         key={item.value}
-                        type="button"
-                        onClick={() => setEnvFilter(item.value)}
-                        className={cn(
-                          "rounded-lg border px-2 py-1 text-[10px] font-bold transition",
-                          envFilter === item.value
-                            ? "border-indigo-500 bg-indigo-600 text-white"
-                            : "border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-zinc-400",
-                        )}
+                        active={filter === item.value}
+                        onClick={() => setFilter(item.value)}
                       >
-                        {item.value === "all" ? item.label : ENV_META[item.value].label}
-                      </button>
+                        {item.label}
+                        {item.value !== "all" && (
+                          <span className="ml-1 text-[9px] opacity-60">
+                            {
+                              resources.filter(
+                                (resource) => SERVICES[resource.kind].category === item.value,
+                              ).length
+                            }
+                          </span>
+                        )}
+                      </Chip>
                     ))}
                   </div>
-                )}
+
+                  {hasAnyEnvTag && (
+                    <div className="flex items-center gap-1">
+                      {ENV_FILTERS.map((item) => (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => setEnvFilter(item.value)}
+                          className={cn(
+                            "rounded-lg border px-2 py-1 text-[10px] font-bold transition",
+                            envFilter === item.value
+                              ? "border-indigo-500 bg-indigo-600 text-white"
+                              : "border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-zinc-400",
+                          )}
+                        >
+                          {item.value === "all" ? item.label : ENV_META[item.value].label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 실시간 검색 & 정렬 바 */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+                    <Search
+                      size={13}
+                      className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-zinc-400"
+                    />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="별칭, 서비스명, 인스턴스 검색..."
+                      aria-label="리소스 검색"
+                      className="h-8 w-full rounded-xl border border-zinc-200 bg-white pr-7 pl-8 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-zinc-600"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        aria-label="검색어 지우기"
+                        className="absolute top-1/2 right-2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpDown size={12} className="text-zinc-400" />
+                    <div className="flex rounded-xl border border-zinc-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.03]">
+                      {SORT_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setSortBy(option.value)}
+                          className={cn(
+                            "rounded-lg px-2 py-1 text-[10px] font-semibold transition",
+                            sortBy === option.value
+                              ? "bg-indigo-600 text-white"
+                              : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white",
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -449,17 +589,18 @@ export default function App() {
               ) : filtered.length === 0 ? (
                 <div className="col-span-full rounded-2xl border border-dashed border-zinc-200 px-6 py-12 text-center dark:border-white/10">
                   <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-                    선택한 필터 조건에 해당하는 리소스가 없습니다.
+                    선택한 필터나 검색 조건에 해당하는 리소스가 없습니다.
                   </p>
                   <button
                     type="button"
                     onClick={() => {
                       setFilter("all");
                       setEnvFilter("all");
+                      setSearchQuery("");
                     }}
                     className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
                   >
-                    전체 보기
+                    필터 초기화 및 전체 보기
                   </button>
                 </div>
               ) : (
@@ -467,9 +608,7 @@ export default function App() {
                   <ResourceCard
                     key={resource.id}
                     resource={resource}
-                    monthlyUsd={
-                      summary.lines.find((line) => line.id === resource.id)?.monthlyUsd ?? 0
-                    }
+                    monthlyUsd={costById[resource.id] ?? 0}
                     pricing={pricing}
                     currency={currency}
                     fx={fx}
@@ -510,6 +649,12 @@ export default function App() {
                   currency={currency}
                   fx={fx}
                   purchaseOption={purchaseOption}
+                  supportPlan={supportPlan}
+                  onSupportPlanChange={setSupportPlan}
+                  includeVat={includeVat}
+                  onIncludeVatChange={setIncludeVat}
+                  budgetUsd={budgetUsd}
+                  onBudgetUsdChange={setBudgetUsd}
                 />
               </Suspense>
               <Insights
@@ -526,6 +671,8 @@ export default function App() {
                 currency={currency}
                 fx={fx}
                 purchaseOption={purchaseOption}
+                supportPlan={supportPlan}
+                includeVat={includeVat}
                 onFxChange={setFx}
                 onImport={handleImport}
                 onReset={handleReset}

@@ -1,9 +1,27 @@
 import { useRef, useState } from "react";
-import { Check, ClipboardCopy, Download, Link2, RefreshCw, RotateCcw, Upload } from "lucide-react";
-import type { CostSummary, Currency, PricingData, PurchaseOption, Resource } from "../types";
+import {
+  Check,
+  ClipboardCopy,
+  Download,
+  FileSpreadsheet,
+  Link2,
+  Printer,
+  RefreshCw,
+  RotateCcw,
+  Upload,
+} from "lucide-react";
+import type {
+  CostSummary,
+  Currency,
+  PricingData,
+  PurchaseOption,
+  Resource,
+  SupportPlan,
+} from "../types";
 import {
   buildMarkdownReport,
   copyText,
+  downloadCsv,
   downloadJson,
   encodeShareUrl,
   fetchLiveKrwRate,
@@ -19,6 +37,8 @@ interface ExportPanelProps {
   currency: Currency;
   fx: number;
   purchaseOption: PurchaseOption;
+  supportPlan: SupportPlan;
+  includeVat: boolean;
   onFxChange: (fx: number) => void;
   onImport: (resources: Resource[]) => void;
   onReset: () => void;
@@ -32,6 +52,8 @@ export function ExportPanel({
   currency,
   fx,
   purchaseOption,
+  supportPlan,
+  includeVat,
   onFxChange,
   onImport,
   onReset,
@@ -48,7 +70,16 @@ export function ExportPanel({
     }
     try {
       await copyText(
-        buildMarkdownReport(resources, summary, currency, fx, pricing, purchaseOption),
+        buildMarkdownReport(
+          resources,
+          summary,
+          currency,
+          fx,
+          pricing,
+          purchaseOption,
+          supportPlan,
+          includeVat,
+        ),
       );
       pushToast("Markdown 리포트를 클립보드에 복사했습니다.", { tone: "success" });
     } catch {
@@ -67,6 +98,8 @@ export function ExportPanel({
         currency,
         fx,
         purchaseOption,
+        supportPlan,
+        includeVat,
       });
       window.history.replaceState(null, "", shareUrl);
       await copyText(shareUrl);
@@ -93,12 +126,29 @@ export function ExportPanel({
     }
   };
 
+  const handleDownloadCsv = () => {
+    if (!resources.length) {
+      pushToast("내보낼 리소스가 없습니다.", { tone: "warn" });
+      return;
+    }
+    downloadCsv(resources, summary, fx, pricing, purchaseOption, supportPlan, includeVat);
+    pushToast("Excel 호환 CSV 파일을 저장했습니다.", { tone: "success" });
+  };
+
+  const handlePrint = () => {
+    if (!resources.length) {
+      pushToast("인쇄할 리소스가 없습니다.", { tone: "warn" });
+      return;
+    }
+    window.print();
+  };
+
   const handleDownload = () => {
     if (!resources.length) {
       pushToast("내보낼 리소스가 없습니다.", { tone: "warn" });
       return;
     }
-    downloadJson(resources, currency, fx, summary, purchaseOption);
+    downloadJson(resources, currency, fx, summary, purchaseOption, supportPlan, includeVat);
     pushToast("JSON 파일을 저장했습니다.", { tone: "success" });
   };
 
@@ -128,7 +178,7 @@ export function ExportPanel({
   return (
     <section
       id="export"
-      className="scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-card dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none"
+      className="no-print scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-card dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none"
     >
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div>
@@ -136,7 +186,7 @@ export function ExportPanel({
             공유 & 내보내기
           </h2>
           <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-500">
-            URL 링크 공유, 리포트 복사, 실시간 환율
+            URL 링크 공유, Excel(CSV)·PDF 인쇄, 실시간 환율
           </p>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2 py-0.5 text-[9px] font-bold tracking-wide text-emerald-600 dark:text-emerald-400">
@@ -190,6 +240,22 @@ export function ExportPanel({
           </button>
           <button
             type="button"
+            onClick={handleDownloadCsv}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+          >
+            <FileSpreadsheet size={13} />
+            Excel (CSV)
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
+          >
+            <Printer size={13} />
+            PDF / 인쇄
+          </button>
+          <button
+            type="button"
             onClick={handleDownload}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
           >
@@ -220,7 +286,7 @@ export function ExportPanel({
 
         <div className="flex items-center justify-between border-t border-zinc-100 pt-3 dark:border-white/[0.06]">
           <p className="text-[10px] leading-relaxed text-zinc-400 dark:text-zinc-600">
-            브라우저 로컬 저장 및 URL 파라미터 공유 지원
+            단축키: <kbd className="rounded border border-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:border-white/15">Ctrl+K</kbd> 서비스 추가
           </p>
           <button
             type="button"

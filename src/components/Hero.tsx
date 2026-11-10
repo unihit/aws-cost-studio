@@ -90,7 +90,7 @@ export function Hero({
 
             <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
               <span className="inline-flex items-center gap-1.5">
-                <Sparkles size={12} className="text-indigo-500" /> 12개 핵심 서비스 · 8개 리전
+                <Sparkles size={12} className="text-indigo-500" /> 13개 핵심 서비스 · 8개 리전
               </span>
               <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
               <span>월 {HOURS_PER_MONTH}시간 기준</span>

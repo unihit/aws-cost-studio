@@ -13,6 +13,7 @@ import {
 import type {
   CloudFrontResource,
   Currency,
+  DynamoDbResource,
   EbsResource,
   Ec2Resource,
   EksResource,
@@ -33,6 +34,7 @@ import {
   ELASTICACHE_NODES,
   getElastiCacheHourlyRate,
   getRegion,
+  getRegionalFactor,
   rdsGp3FreeBaseline,
 } from "../lib/calc";
 import { formatMoney, formatNumber, formatUsd } from "../lib/format";
@@ -202,7 +204,7 @@ export function ServiceDrawer({
                   서비스 카탈로그
                 </h2>
                 <p className="text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-                  12 services · real rates
+                  13 services · real rates
                 </p>
               </div>
             </>
@@ -242,6 +244,9 @@ export function ServiceDrawer({
               )}
               {draft.kind === "rds" && (
                 <RdsFields resource={draft} pricing={pricing} onPatch={patch} />
+              )}
+              {draft.kind === "dynamodb" && (
+                <DynamoDbFields resource={draft} onPatch={patch} />
               )}
               {draft.kind === "elasticache" && (
                 <ElastiCacheFields resource={draft} onPatch={patch} />
@@ -741,9 +746,24 @@ function RdsFields({
     resource.storageType === "io1" ||
     resource.storageType === "io2";
   const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
+  const isServerlessV2 = resource.deploymentMode === "serverlessV2";
+  const acuRate = 0.12 * getRegionalFactor(resource.regionId);
 
   return (
     <>
+      <div>
+        <SectionLabel hint="프로비저닝 인스턴스 vs 오토스케일링 ACU">배포 방식 (Deployment Mode)</SectionLabel>
+        <Segmented
+          ariaLabel="RDS 배포 방식"
+          value={resource.deploymentMode ?? "instance"}
+          onChange={(deploymentMode) => onPatch({ deploymentMode })}
+          options={[
+            { value: "instance", label: "RDS 인스턴스 (db.*)" },
+            { value: "serverlessV2", label: "Aurora Serverless v2 (ACU)" },
+          ]}
+        />
+      </div>
+
       <div>
         <SectionLabel>엔진</SectionLabel>
         <Segmented
@@ -751,55 +771,77 @@ function RdsFields({
           value={resource.engine}
           onChange={(next) => onPatch({ engine: next })}
           options={[
-            { value: "postgres", label: "PostgreSQL" },
-            { value: "mysql", label: "MySQL" },
+            { value: "postgres", label: isServerlessV2 ? "Aurora PostgreSQL" : "PostgreSQL" },
+            { value: "mysql", label: isServerlessV2 ? "Aurora MySQL" : "MySQL" },
           ]}
         />
       </div>
 
-      <div>
-        <SectionLabel hint={resource.multiAz ? "Multi-AZ 요율" : "Single-AZ 요율"}>
-          DB 인스턴스 클래스
-        </SectionLabel>
-        <div className="relative">
-          <select
-            aria-label="RDS 인스턴스 클래스"
-            value={resource.instanceType}
-            onChange={(event) => onPatch({ instanceType: event.target.value })}
-            className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
-          >
-            {instances.map(([type, item]) => (
-              <option key={type} value={type}>
-                {type} · {item.vcpu} vCPU · {item.mem} GiB
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={15}
-            className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400"
-          />
+      {isServerlessV2 ? (
+        <RangeField
+          label="월평균 ACU (Aurora Capacity Unit)"
+          hint={`1 ACU ≈ 2 GiB 메모리 · 시간당 ${formatUsd(acuRate, 4)}/ACU-hr (0.5 ~ 128 ACU 자동 스케일링)`}
+          value={resource.acu ?? 2}
+          onChange={(acu) => onPatch({ acu })}
+          min={0.5}
+          max={64}
+          step={0.5}
+          unit="ACU"
+          format={(v) => formatNumber(v, 1)}
+        />
+      ) : (
+        <div>
+          <SectionLabel hint={resource.multiAz ? "Multi-AZ 요율" : "Single-AZ 요율"}>
+            DB 인스턴스 클래스
+          </SectionLabel>
+          <div className="relative">
+            <select
+              aria-label="RDS 인스턴스 클래스"
+              value={resource.instanceType}
+              onChange={(event) => onPatch({ instanceType: event.target.value })}
+              className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
+            >
+              {instances.map(([type, item]) => (
+                <option key={type} value={type}>
+                  {type} · {item.vcpu} vCPU · {item.mem} GiB
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={15}
+              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400"
+            />
+          </div>
+          {instance && (
+            <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
+              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
+                {formatUsd(resource.multiAz ? instance.multi : instance.single, 4)}/hr
+              </span>
+              {formatNumber(instance.vcpu)} vCPU · {formatNumber(instance.mem)} GiB ·{" "}
+              {resource.multiAz ? "Multi-AZ" : "Single-AZ"}
+            </p>
+          )}
         </div>
-        {instance && (
-          <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
-            <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
-              {formatUsd(resource.multiAz ? instance.multi : instance.single, 4)}/hr
-            </span>
-            {formatNumber(instance.vcpu)} vCPU · {formatNumber(instance.mem)} GiB ·{" "}
-            {resource.multiAz ? "Multi-AZ" : "Single-AZ"}
-          </p>
-        )}
-      </div>
+      )}
 
       <Toggle
         checked={resource.multiAz}
         onChange={(multiAz) => onPatch({ multiAz })}
-        label="Multi-AZ 배포"
-        hint="가용 영역 이중화 · 인스턴스와 스토리지 요율이 약 2배"
+        label="Multi-AZ 배포 (고가용성)"
+        hint={
+          isServerlessV2
+            ? "리더(Reader) Serverless v2 인스턴스 추가 구성 (ACU 컴퓨트 2배)"
+            : "가용 영역 이중화 · 인스턴스와 스토리지 요율이 약 2배"
+        }
       />
 
       <RangeField
         label="스토리지 크기"
-        hint="gp3는 400GB 이상부터 기본 12,000 IOPS / 500 MB/s가 무료 제공됩니다"
+        hint={
+          isServerlessV2
+            ? "Aurora 클러스터 공유 스토리지 (GB당 약 $0.10~$0.12/월)"
+            : "gp3는 400GB 이상부터 기본 12,000 IOPS / 500 MB/s가 무료 제공됩니다"
+        }
         value={resource.storageGb}
         onChange={(storageGb) => {
           const baseline = rdsGp3FreeBaseline(storageGb);
@@ -818,68 +860,74 @@ function RdsFields({
         unit="GB"
       />
 
-      <div>
-        <SectionLabel hint={storageRate ? `${formatUsd(storageRate.price, 3)}/GB-mo` : undefined}>
-          스토리지 유형
-        </SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {RDS_STORAGE_TYPES.map((type) => (
-            <Chip
-              key={type}
-              active={resource.storageType === type}
-              onClick={() =>
-                onPatch({
-                  storageType: type,
-                  iops:
-                    type === "gp3"
-                      ? freeIops
-                      : type === "io1" || type === "io2"
-                        ? Math.max(resource.iops, 1000)
-                        : resource.iops,
-                  throughput: type === "gp3" ? freeThroughput : 125,
-                })
+      {!isServerlessV2 && (
+        <>
+          <div>
+            <SectionLabel hint={storageRate ? `${formatUsd(storageRate.price, 3)}/GB-mo` : undefined}>
+              스토리지 유형
+            </SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              {RDS_STORAGE_TYPES.map((type) => (
+                <Chip
+                  key={type}
+                  active={resource.storageType === type}
+                  onClick={() =>
+                    onPatch({
+                      storageType: type,
+                      iops:
+                        type === "gp3"
+                          ? freeIops
+                          : type === "io1" || type === "io2"
+                            ? Math.max(resource.iops, 1000)
+                            : resource.iops,
+                      throughput: type === "gp3" ? freeThroughput : 125,
+                    })
+                  }
+                >
+                  {type.toUpperCase()}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {supportsIops && (
+            <RangeField
+              label="프로비저닝 IOPS"
+              hint={
+                resource.storageType === "gp3"
+                  ? `기본 ${formatNumber(freeIops)} IOPS 무료 · 초과분 과금`
+                  : "io1 · io2 스토리지 프로비저닝 IOPS"
               }
-            >
-              {type.toUpperCase()}
-            </Chip>
-          ))}
-        </div>
-      </div>
+              value={resource.iops}
+              onChange={(iops) => onPatch({ iops })}
+              min={resource.storageType === "gp3" ? freeIops : 1000}
+              max={64000}
+              step={500}
+              unit="IOPS"
+            />
+          )}
 
-      {supportsIops && (
-        <RangeField
-          label="프로비저닝 IOPS"
-          hint={
-            resource.storageType === "gp3"
-              ? `기본 ${formatNumber(freeIops)} IOPS 무료 · 초과분 과금`
-              : "io1 · io2 스토리지 프로비저닝 IOPS"
-          }
-          value={resource.iops}
-          onChange={(iops) => onPatch({ iops })}
-          min={resource.storageType === "gp3" ? freeIops : 1000}
-          max={64000}
-          step={500}
-          unit="IOPS"
-        />
-      )}
-
-      {resource.storageType === "gp3" && (
-        <RangeField
-          label="프로비저닝 처리량 (Throughput)"
-          hint={`기본 ${freeThroughput} MB/s 무료 · 초과분 과금`}
-          value={resource.throughput ?? freeThroughput}
-          onChange={(throughput) => onPatch({ throughput })}
-          min={freeThroughput}
-          max={4000}
-          step={25}
-          unit="MB/s"
-        />
+          {resource.storageType === "gp3" && (
+            <RangeField
+              label="프로비저닝 처리량 (Throughput)"
+              hint={`기본 ${freeThroughput} MB/s 무료 · 초과분 과금`}
+              value={resource.throughput ?? freeThroughput}
+              onChange={(throughput) => onPatch({ throughput })}
+              min={freeThroughput}
+              max={4000}
+              step={25}
+              unit="MB/s"
+            />
+          )}
+        </>
       )}
 
       <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
         <div>
-          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">DB 인스턴스 수량</p>
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">스토리지는 인스턴스당 1개로 계산</p>
+          <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+            {isServerlessV2 ? "Aurora 클러스터 수량" : "DB 인스턴스 수량"}
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-500">스토리지는 클러스터/인스턴스당 1개로 계산</p>
         </div>
         <Stepper
           value={resource.qty}
@@ -889,6 +937,101 @@ function RdsFields({
           label="RDS 수량"
         />
       </div>
+    </>
+  );
+}
+
+/* ------------------------------- DynamoDB -------------------------------- */
+
+function DynamoDbFields({
+  resource,
+  onPatch,
+}: {
+  resource: DynamoDbResource;
+  onPatch: (values: Record<string, unknown>) => void;
+}) {
+  const isOnDemand = resource.capacityMode === "onDemand";
+
+  return (
+    <>
+      <div>
+        <SectionLabel hint="On-Demand 요율 50% 인하 반영됨">용량 모드 (Capacity Mode)</SectionLabel>
+        <Segmented
+          ariaLabel="DynamoDB 용량 모드"
+          value={resource.capacityMode}
+          onChange={(capacityMode) => onPatch({ capacityMode })}
+          options={[
+            { value: "onDemand", label: "On-Demand (요청당 과금 · 50%↓)" },
+            { value: "provisioned", label: "Provisioned (WCU / RCU)" },
+          ]}
+        />
+      </div>
+
+      <RangeField
+        label="테이블 스토리지 용량"
+        hint="프리 티어 적용 시 첫 25 GB 무료 · 초과분 약 $0.25~$0.285/GB-mo"
+        value={resource.storageGb}
+        onChange={(storageGb) => onPatch({ storageGb })}
+        min={1}
+        max={5000}
+        step={5}
+        unit="GB"
+      />
+
+      {isOnDemand ? (
+        <>
+          <RangeField
+            label="월간 쓰기 요청 (Write Request Units)"
+            hint="백만(Million) 건 단위 · 100만 건당 약 $0.625~$0.725"
+            value={resource.writeUnits}
+            onChange={(writeUnits) => onPatch({ writeUnits })}
+            min={0}
+            max={500}
+            step={1}
+            unit="M WRU"
+          />
+          <RangeField
+            label="월간 읽기 요청 (Read Request Units)"
+            hint="백만(Million) 건 단위 · 100만 건당 약 $0.125~$0.145"
+            value={resource.readUnits}
+            onChange={(readUnits) => onPatch({ readUnits })}
+            min={0}
+            max={2000}
+            step={5}
+            unit="M RRU"
+          />
+        </>
+      ) : (
+        <>
+          <RangeField
+            label="프로비저닝 쓰기 용량 (WCU)"
+            hint="프리 티어 적용 시 25 WCU 무료"
+            value={resource.writeUnits}
+            onChange={(writeUnits) => onPatch({ writeUnits })}
+            min={1}
+            max={5000}
+            step={5}
+            unit="WCU"
+          />
+          <RangeField
+            label="프로비저닝 읽기 용량 (RCU)"
+            hint="프리 티어 적용 시 25 RCU 무료"
+            value={resource.readUnits}
+            onChange={(readUnits) => onPatch({ readUnits })}
+            min={1}
+            max={10000}
+            step={10}
+            unit="RCU"
+          />
+        </>
+      )}
+
+      <Toggle
+        checked={resource.includeFreeTier}
+        onChange={(includeFreeTier) => onPatch({ includeFreeTier })}
+        label="AWS 상시 무료 티어 (Free Tier) 공제"
+        hint="스토리지 25 GB 및 프로비저닝 25 WCU / 25 RCU 상시 무료 공제"
+      />
     </>
   );
 }
@@ -1354,8 +1497,8 @@ function EcsFields({
       </div>
 
       <RangeField
-        label="월평균 가동 시간"
-        hint="월 최대 744시간 (기본 730시간 = 상시 가동)"
+        label="월간 가동 시간"
+        hint="AWS 표준 연평균 730h · 31일 기준 최대 744h"
         value={resource.hours}
         onChange={(hours) => onPatch({ hours })}
         min={1}
@@ -1443,8 +1586,8 @@ function NatFields({
       </div>
 
       <RangeField
-        label="운영 시간"
-        hint="월 최대 744시간"
+        label="월간 가동 시간"
+        hint="AWS 표준 연평균 730h · 31일 기준 최대 744h"
         value={resource.hours}
         onChange={(hours) => onPatch({ hours })}
         min={1}
@@ -1531,8 +1674,8 @@ function AlbFields({
       </div>
 
       <RangeField
-        label="월평균 가동 시간"
-        hint="월 최대 744시간 (기본 730시간 = 상시 가동)"
+        label="월간 가동 시간"
+        hint="AWS 표준 연평균 730h · 31일 기준 최대 744h"
         value={resource.hours}
         onChange={(hours) => onPatch({ hours })}
         min={1}

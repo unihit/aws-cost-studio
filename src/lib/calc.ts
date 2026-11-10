@@ -7,6 +7,7 @@ import type {
   RegionPricing,
   Resource,
   ServiceKind,
+  SupportPlan,
 } from "../types";
 import { SERVICES } from "./services";
 import { formatCompact, formatNumber } from "./format";
@@ -33,6 +34,7 @@ const EMPTY_KINDS = (): Record<ServiceKind, number> => ({
   ecs: 0,
   ebs: 0,
   rds: 0,
+  dynamodb: 0,
   elasticache: 0,
   s3: 0,
   lambda: 0,
@@ -213,6 +215,14 @@ export function calculateResource(
       return base + iops + throughput;
     }
     case "rds": {
+      if (resource.deploymentMode === "serverlessV2") {
+        const factor = getRegionalFactor(resource.regionId);
+        const acuHourly = 0.12 * factor;
+        const acu = resource.acu ?? 2;
+        const instanceCost = acu * acuHourly * HOURS_PER_MONTH * (resource.multiAz ? 2 : 1);
+        const auroraStorageCost = resource.storageGb * 0.1 * factor;
+        return (instanceCost + auroraStorageCost) * resource.qty;
+      }
       const engine = region.rds[resource.engine];
       const instance = engine.instance[resource.instanceType];
       if (!instance) return 0;
@@ -233,6 +243,25 @@ export function calculateResource(
         storageCost += extraIops * gp3IopsRate + extraThroughput * throughputRate;
       }
       return (instanceCost + storageCost) * resource.qty;
+    }
+    case "dynamodb": {
+      const factor = getRegionalFactor(resource.regionId);
+      const freeStorageGb = resource.includeFreeTier ? 25 : 0;
+      const billableStorageGb = Math.max(0, resource.storageGb - freeStorageGb);
+      const storageCost = billableStorageGb * 0.25 * factor;
+
+      if (resource.capacityMode === "onDemand") {
+        // AWS 50% reduced On-Demand DynamoDB pricing: $0.625 per 1M WRU, $0.125 per 1M RRU (base us-east-1)
+        const writeCost = resource.writeUnits * 0.625 * factor;
+        const readCost = resource.readUnits * 0.125 * factor;
+        return storageCost + writeCost + readCost;
+      }
+      const freeUnits = resource.includeFreeTier ? 25 : 0;
+      const billableWcu = Math.max(0, resource.writeUnits - freeUnits);
+      const billableRcu = Math.max(0, resource.readUnits - freeUnits);
+      const writeCost = billableWcu * 0.00065 * factor * HOURS_PER_MONTH;
+      const readCost = billableRcu * 0.00013 * factor * HOURS_PER_MONTH;
+      return storageCost + writeCost + readCost;
     }
     case "elasticache": {
       const hourly = getElastiCacheHourlyRate(resource.regionId, resource.nodeType, resource.engine);
@@ -393,6 +422,9 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
     }
     case "rds": {
       const engine = resource.engine === "postgres" ? "PostgreSQL" : "MySQL";
+      if (resource.deploymentMode === "serverlessV2") {
+        return `Aurora Serverless v2 (${engine}) · 평균 ${resource.acu ?? 2} ACU · ${resource.multiAz ? "Multi-AZ" : "Single-AZ"} · ${formatNumber(resource.storageGb)} GB`;
+      }
       const { freeIops, freeThroughput } = rdsGp3FreeBaseline(resource.storageGb);
       const parts = [
         engine,
@@ -410,6 +442,14 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
         parts.push(`${resource.throughput} MB/s`);
       }
       return parts.join(" · ");
+    }
+    case "dynamodb": {
+      const modeLabel = resource.capacityMode === "onDemand" ? "On-Demand" : "Provisioned";
+      const unitLabel =
+        resource.capacityMode === "onDemand"
+          ? `쓰기 ${resource.writeUnits}M · 읽기 ${resource.readUnits}M/월`
+          : `${resource.writeUnits} WCU · ${resource.readUnits} RCU`;
+      return `${modeLabel} · ${formatNumber(resource.storageGb)} GB · ${unitLabel}`;
     }
     case "elasticache": {
       const engineLabel = resource.engine === "valkey" ? "Valkey" : "Redis";
@@ -465,10 +505,27 @@ export const S3_CLASS_LABEL: Record<Extract<Resource, { kind: "s3" }>["storageCl
   deepArchive: "Deep Archive",
 };
 
+export function calculateSupportFee(subtotalUsd: number, supportPlan: SupportPlan = "basic"): number {
+  if (subtotalUsd <= 0 || supportPlan === "basic") return 0;
+  if (supportPlan === "developer") {
+    return Math.max(29, subtotalUsd * 0.03);
+  }
+  // AWS Business Support tiered schedule: 10% first $10K, 7% $10K-$80K, 5% $80K-$250K, 3% >$250K (min $100)
+  let fee = 0;
+  const tier1 = Math.min(subtotalUsd, 10_000);
+  const tier2 = Math.min(Math.max(0, subtotalUsd - 10_000), 70_000);
+  const tier3 = Math.min(Math.max(0, subtotalUsd - 80_000), 170_000);
+  const tier4 = Math.max(0, subtotalUsd - 250_000);
+  fee = tier1 * 0.1 + tier2 * 0.07 + tier3 * 0.05 + tier4 * 0.03;
+  return Math.max(100, fee);
+}
+
 export function calculateSummary(
   resources: Resource[],
   pricing: PricingData,
   purchaseOption: PurchaseOption = "onDemand",
+  supportPlan: SupportPlan = "basic",
+  includeVat = false,
 ): CostSummary {
   const lines: CostLine[] = resources.map((resource) => {
     const monthlyUsd = calculateResource(resource, pricing, purchaseOption);
@@ -490,13 +547,24 @@ export function calculateSummary(
     byKind[line.kind] += line.monthlyUsd;
     byCategory[line.category] += line.monthlyUsd;
   }
-  const monthlyUsd = lines.reduce((sum, line) => sum + line.monthlyUsd, 0);
-  const onDemandMonthlyUsd = resources.reduce(
+  const subtotalUsd = lines.reduce((sum, line) => sum + line.monthlyUsd, 0);
+  const supportUsd = calculateSupportFee(subtotalUsd, supportPlan);
+  const vatUsd = includeVat ? (subtotalUsd + supportUsd) * 0.1 : 0;
+  const monthlyUsd = subtotalUsd + supportUsd + vatUsd;
+
+  const rawOnDemandUsd = resources.reduce(
     (sum, resource) => sum + calculateResource(resource, pricing, "onDemand"),
     0,
   );
+  const onDemandSupportUsd = calculateSupportFee(rawOnDemandUsd, supportPlan);
+  const onDemandVatUsd = includeVat ? (rawOnDemandUsd + onDemandSupportUsd) * 0.1 : 0;
+  const onDemandMonthlyUsd = rawOnDemandUsd + onDemandSupportUsd + onDemandVatUsd;
+
   return {
     lines,
+    subtotalUsd,
+    supportUsd,
+    vatUsd,
     monthlyUsd,
     annualUsd: monthlyUsd * 12,
     onDemandMonthlyUsd,

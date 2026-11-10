@@ -10,10 +10,11 @@ import {
   Layers,
   Network,
   Server,
+  Table2,
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
-import type { Category, EnvTag, PurchaseOption, ServiceKind } from "../types";
+import type { Category, EnvTag, PurchaseOption, ServiceKind, SupportPlan } from "../types";
 
 export interface ServiceMeta {
   kind: ServiceKind;
@@ -49,13 +50,23 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
   },
   rds: {
     kind: "rds",
-    title: "Amazon RDS",
+    title: "Amazon RDS & Aurora",
     eyebrow: "Managed database",
-    description: "PostgreSQL · MySQL, Multi-AZ와 gp3/io2 스토리지 요율을 한 번에.",
+    description: "PostgreSQL · MySQL, Aurora Serverless v2(ACU), Multi-AZ와 gp3/io2 스토리지 요율을 한 번에.",
     icon: Database,
     category: "database",
     accent: "text-indigo-500",
     tile: "bg-indigo-500/10 text-indigo-500 ring-indigo-500/20",
+  },
+  dynamodb: {
+    kind: "dynamodb",
+    title: "Amazon DynamoDB",
+    eyebrow: "NoSQL Serverless DB",
+    description: "On-Demand(WRU/RRU 50% 인하 반영) · 프로비저닝(WCU/RCU) 용량과 스토리지를 계산합니다.",
+    icon: Table2,
+    category: "database",
+    accent: "text-blue-600",
+    tile: "bg-blue-600/10 text-blue-600 ring-blue-600/20",
   },
   elasticache: {
     kind: "elasticache",
@@ -153,6 +164,7 @@ export const SERVICE_ORDER: ServiceKind[] = [
   "ec2",
   "ecs",
   "rds",
+  "dynamodb",
   "elasticache",
   "s3",
   "ebs",
@@ -175,6 +187,7 @@ export const SERVICE_COLORS: Record<ServiceKind, string> = {
   ec2: "#f59e0b",
   ebs: "#0ea5e9",
   rds: "#6366f1",
+  dynamodb: "#2563eb",
   elasticache: "#d946ef",
   s3: "#10b981",
   lambda: "#f97316",
@@ -195,6 +208,17 @@ export const PURCHASE_OPTIONS: {
   { value: "onDemand", label: "On-Demand (정가)", shortLabel: "On-Demand", discountText: "약정 없음" },
   { value: "sp1yr", label: "1년 약정 (SP/RI)", shortLabel: "1yr SP/RI", discountText: "컴퓨트·DB 최대 28%↓" },
   { value: "sp3yr", label: "3년 약정 (SP/RI)", shortLabel: "3yr SP/RI", discountText: "컴퓨트·DB 최대 48%↓" },
+];
+
+export const SUPPORT_PLANS: {
+  value: SupportPlan;
+  label: string;
+  shortLabel: string;
+  hint: string;
+}[] = [
+  { value: "basic", label: "Basic Support (무료)", shortLabel: "Basic (무료)", hint: "기본 지원 · 추가 비용 없음" },
+  { value: "developer", label: "Developer Support", shortLabel: "Dev (3%)", hint: "월 최소 $29 또는 사용량의 3%" },
+  { value: "business", label: "Business Support", shortLabel: "Biz (10%~)", hint: "월 최소 $100 또는 구간별 10%~3%" },
 ];
 
 export const ENV_META: Record<EnvTag, { label: string; badgeClass: string }> = {

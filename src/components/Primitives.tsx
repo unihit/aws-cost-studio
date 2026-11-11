@@ -200,7 +200,7 @@ export function NumberField({ label, value, onChange, min, max, step, unit, hint
       </div>
       <div className="flex items-center gap-2">
         <InlineNumber value={value} onChange={onChange} min={min} max={max} step={step} ariaLabel={label} className="w-full" />
-        {unit && <span className="text-xs text-zinc-500 dark:text-zinc-500">{unit}</span>}
+        {unit && <span className="shrink-0 text-xs whitespace-nowrap text-zinc-500 dark:text-zinc-500">{unit}</span>}
       </div>
     </div>
   );

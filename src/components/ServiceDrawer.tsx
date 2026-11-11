@@ -1159,6 +1159,8 @@ function S3Fields({
   const storageRate =
     resource.storageClass === "standard" ? region.s3.standard.tiers[0] : config.storage;
   const hasRetrieval = resource.storageClass !== "standard";
+  const putRate1k = ((region.s3.standard.put?.price ?? 0.0000045) * 1000).toFixed(4);
+  const getRate10k = ((region.s3.standard.get?.price ?? 0.00000035) * 10000).toFixed(4);
 
   return (
     <>
@@ -1196,24 +1198,24 @@ function S3Fields({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <NumberField
-          label="PUT 요청"
-          hint="월간"
+          label="월간 PUT / POST 요청"
+          hint={`1,000건당 약 $${putRate1k}`}
           value={resource.putRequests}
           onChange={(putRequests) => onPatch({ putRequests })}
           min={0}
           max={1_000_000_000}
           step={1000}
-          unit="/월"
+          unit="건"
         />
         <NumberField
-          label="GET 요청"
-          hint="월간"
+          label="월간 GET / SELECT 요청"
+          hint={`1만 건당 약 $${getRate10k}`}
           value={resource.getRequests}
           onChange={(getRequests) => onPatch({ getRequests })}
           min={0}
           max={10_000_000_000}
           step={1000}
-          unit="/월"
+          unit="건"
         />
       </div>
 

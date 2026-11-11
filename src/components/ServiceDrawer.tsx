@@ -1842,18 +1842,18 @@ function BedrockFields({
   resource: BedrockResource;
   onPatch: (values: Record<string, unknown>) => void;
 }) {
-  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-7-sonnet"];
+  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
   const factor = getRegionalFactor(resource.regionId);
   const inputRate = model.inputPerMillionUsd * factor;
   const outputRate = model.outputPerMillionUsd * factor;
 
   const providers: Array<{ label: string; models: (typeof BEDROCK_MODELS)[string][] }> = [
     {
-      label: "Anthropic (Claude 5.5 / 3.7 / 3.5)",
+      label: "Anthropic (Claude 5.5)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Anthropic"),
     },
     {
-      label: "OpenAI (GPT 6.1 Sol / 5.2 Omni / o3)",
+      label: "OpenAI (GPT 6.1 Sol / Terra / Astra)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "OpenAI"),
     },
   ];

@@ -455,7 +455,7 @@ export function parseImportedResources(raw: unknown): Resource[] {
           return {
             ...b,
             kind,
-            modelId: str(item.modelId, "anthropic.claude-3-5-sonnet"),
+            modelId: str(item.modelId, "anthropic.claude-5-5-sonnet"),
             monthlyInputTokensM: Math.max(0, num(item.monthlyInputTokensM, 5)),
             monthlyOutputTokensM: Math.max(0, num(item.monthlyOutputTokensM, 1)),
           };

@@ -1853,22 +1853,8 @@ function BedrockFields({
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Anthropic"),
     },
     {
-      label: "OpenAI (GPT 6.1 Sol)",
+      label: "OpenAI (GPT 6.1 Sol / 5.2 Omni / o3)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "OpenAI"),
-    },
-    {
-      label: "Amazon (Nova & Titan)",
-      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Amazon"),
-    },
-    {
-      label: "Meta (Llama 3.3 / 3.2 / 3.1)",
-      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Meta"),
-    },
-    {
-      label: "Mistral & Cohere",
-      models: Object.values(BEDROCK_MODELS).filter(
-        (m) => m.provider === "Mistral" || m.provider === "Cohere",
-      ),
     },
   ];
 
@@ -1941,7 +1927,7 @@ function BedrockFields({
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           1M(100만) 토큰은 약 75만 영문 단어(A4 약 1,500장) 또는 150만 자의 한국어 텍스트에 해당합니다.
-          Claude 3.7 Sonnet 또는 Amazon Nova 시리즈 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
+          Claude 5.5 Sonnet / Opus 또는 GPT 6.1 Sol 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
         </p>
       </div>
     </>

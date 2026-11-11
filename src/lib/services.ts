@@ -196,7 +196,7 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
 export interface BedrockModelSpec {
   id: string;
   name: string;
-  provider: "Anthropic" | "OpenAI" | "Amazon" | "Meta" | "Mistral" | "Cohere";
+  provider: "Anthropic" | "OpenAI";
   inputPerMillionUsd: number;
   outputPerMillionUsd: number;
   description: string;
@@ -204,14 +204,14 @@ export interface BedrockModelSpec {
 }
 
 export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
-  // --- 2026 최신 차세대 플래그십 (Claude 5.5 & GPT 6.1 Sol) ---
+  // === Anthropic Claude 최신 플래그십 라인업 ===
   "anthropic.claude-5-5-sonnet": {
     id: "anthropic.claude-5-5-sonnet",
     name: "Claude 5.5 Sonnet",
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "2026 최신 플래그십 자율 에이전트 & 고성능 코딩 모델 ($3.00 / $15.00 per 1M)",
+    description: "2026 최신 주력 플래그십 · 고성능 코딩 및 자율 에이전트 ($3.00 / $15.00 per 1M)",
     badge: "2026 최신",
   },
   "anthropic.claude-5-5-opus": {
@@ -220,28 +220,26 @@ export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
     provider: "Anthropic",
     inputPerMillionUsd: 10.0,
     outputPerMillionUsd: 50.0,
-    description: "2026 최고 지능 복합 심층 추론 및 시스템 설계 모델 ($10.00 / $50.00 per 1M)",
+    description: "2026 최고 지능 복합 심층 추론 및 시스템 설계 플래그십 ($10.00 / $50.00 per 1M)",
     badge: "최고 지능",
   },
-  "openai.gpt-6-1-sol": {
-    id: "openai.gpt-6-1-sol",
-    name: "GPT 6.1 Sol",
-    provider: "OpenAI",
-    inputPerMillionUsd: 2.5,
-    outputPerMillionUsd: 10.0,
-    description: "2026 차세대 고속 자율 추론 & 멀티모달 프론티어 ($2.50 / $10.00 per 1M)",
-    badge: "Sol 플래그십",
+  "anthropic.claude-5-5-haiku": {
+    id: "anthropic.claude-5-5-haiku",
+    name: "Claude 5.5 Haiku",
+    provider: "Anthropic",
+    inputPerMillionUsd: 0.5,
+    outputPerMillionUsd: 2.5,
+    description: "초고속 실시간 스트리밍 & 초경량 고효율 모델 ($0.50 / $2.50 per 1M)",
+    badge: "초고속",
   },
-
-  // --- Anthropic Claude 3.7 & 3.5 ---
   "anthropic.claude-3-7-sonnet": {
     id: "anthropic.claude-3-7-sonnet",
     name: "Claude 3.7 Sonnet",
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "하이브리드 추론 모델 (표준 응답 & Extended Thinking 통합 지원 · $3 / $15)",
-    badge: "추론 지원",
+    description: "하이브리드 추론 플래그십 (표준 응답 & Extended Thinking) ($3.00 / $15.00 per 1M)",
+    badge: "하이브리드 추론",
   },
   "anthropic.claude-3-5-sonnet-v2": {
     id: "anthropic.claude-3-5-sonnet-v2",
@@ -249,15 +247,8 @@ export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "코딩·컴퓨터 사용·도구 연동 에이전트 모델 ($3.00 / $15.00 per 1M)",
-  },
-  "anthropic.claude-3-5-sonnet": {
-    id: "anthropic.claude-3-5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    provider: "Anthropic",
-    inputPerMillionUsd: 3.0,
-    outputPerMillionUsd: 15.0,
-    description: "코딩·에이전트·복합 추론 기본 모델 ($3.00 / $15.00 per 1M)",
+    description: "검증된 엔터프라이즈 코딩 & 도구 연동 표준 ($3.00 / $15.00 per 1M)",
+    badge: "v2",
   },
   "anthropic.claude-3-5-haiku": {
     id: "anthropic.claude-3-5-haiku",
@@ -266,159 +257,60 @@ export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
     inputPerMillionUsd: 0.8,
     outputPerMillionUsd: 4.0,
     description: "초고속 응답 속도와 뛰어난 가성비 ($0.80 / $4.00 per 1M)",
-    badge: "초고속",
-  },
-  "anthropic.claude-3-opus": {
-    id: "anthropic.claude-3-opus",
-    name: "Claude 3 Opus",
-    provider: "Anthropic",
-    inputPerMillionUsd: 15.0,
-    outputPerMillionUsd: 75.0,
-    description: "심층 분석·복잡한 고난도 추론 작업용 ($15.00 / $75.00 per 1M)",
   },
 
-  // --- Amazon Nova (re:Invent 최신 프론티어) & Titan ---
-  "amazon.nova-pro": {
-    id: "amazon.nova-pro",
-    name: "Amazon Nova Pro",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.8,
-    outputPerMillionUsd: 3.2,
-    description: "AWS 최신 고성능 멀티모달(텍스트/이미지/비디오) 복합 추론 ($0.80 / $3.20 per 1M)",
-    badge: "Nova 최신",
-  },
-  "amazon.nova-lite": {
-    id: "amazon.nova-lite",
-    name: "Amazon Nova Lite",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.06,
-    outputPerMillionUsd: 0.24,
-    description: "초고속 멀티모달 처리 극가성비 모델 ($0.06 / $0.24 per 1M)",
-    badge: "초가성비",
-  },
-  "amazon.nova-micro": {
-    id: "amazon.nova-micro",
-    name: "Amazon Nova Micro",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.035,
-    outputPerMillionUsd: 0.14,
-    description: "초저지연 텍스트 전용 초저비용 모델 ($0.035 / $0.14 per 1M)",
-    badge: "초저비용",
-  },
-  "amazon.titan-text-premier": {
-    id: "amazon.titan-text-premier",
-    name: "Amazon Titan Text Premier",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.5,
-    outputPerMillionUsd: 1.5,
-    description: "엔터프라이즈 맞춤형 고성능 텍스트 모델 ($0.50 / $1.50 per 1M)",
-  },
-  "amazon.titan-text-express": {
-    id: "amazon.titan-text-express",
-    name: "Titan Text Express",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.2,
-    outputPerMillionUsd: 0.6,
-    description: "텍스트 요약, 질의응답용 가성비 모델 ($0.20 / $0.60 per 1M)",
-  },
-  "amazon.titan-embed-text-v2": {
-    id: "amazon.titan-embed-text-v2",
-    name: "Titan Embeddings V2",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.02,
-    outputPerMillionUsd: 0.0,
-    description: "100+ 언어 지원 최신 2세대 RAG 벡터 임베딩 ($0.02 per 1M)",
-    badge: "RAG 추천",
-  },
-  "amazon.titan-embed-text": {
-    id: "amazon.titan-embed-text",
-    name: "Titan Embeddings G1",
-    provider: "Amazon",
-    inputPerMillionUsd: 0.02,
-    outputPerMillionUsd: 0.0,
-    description: "RAG 검색 및 벡터 임베딩 생성 ($0.02 per 1M)",
-  },
-
-  // --- Meta Llama 3.3, 3.2 & 3.1 ---
-  "meta.llama-3-3-70b": {
-    id: "meta.llama-3-3-70b",
-    name: "Llama 3.3 70B",
-    provider: "Meta",
-    inputPerMillionUsd: 0.72,
-    outputPerMillionUsd: 0.72,
-    description: "최신 오픈 가중치 플래그십 (405B급 성능을 70B 비용으로) ($0.72 / $0.72 per 1M)",
-    badge: "최신 Llama",
-  },
-  "meta.llama-3-2-11b": {
-    id: "meta.llama-3-2-11b",
-    name: "Llama 3.2 11B Vision",
-    provider: "Meta",
-    inputPerMillionUsd: 0.16,
-    outputPerMillionUsd: 0.16,
-    description: "이미지/시각 이해 멀티모달 오픈 모델 ($0.16 / $0.16 per 1M)",
-    badge: "비전 오픈",
-  },
-  "meta.llama-3-2-3b": {
-    id: "meta.llama-3-2-3b",
-    name: "Llama 3.2 3B",
-    provider: "Meta",
-    inputPerMillionUsd: 0.15,
-    outputPerMillionUsd: 0.15,
-    description: "초경량 온디바이스/에지급 초저지연 언어 모델 ($0.15 / $0.15 per 1M)",
-  },
-  "meta.llama-3-2-1b": {
-    id: "meta.llama-3-2-1b",
-    name: "Llama 3.2 1B",
-    provider: "Meta",
-    inputPerMillionUsd: 0.1,
-    outputPerMillionUsd: 0.1,
-    description: "초저비용 초경량 텍스트 요약 모델 ($0.10 / $0.10 per 1M)",
-  },
-  "meta.llama-3-1-405b": {
-    id: "meta.llama-3-1-405b",
-    name: "Llama 3.1 405B",
-    provider: "Meta",
-    inputPerMillionUsd: 2.4,
-    outputPerMillionUsd: 2.4,
-    description: "초대형 405B 파라미터 프론티어 오픈 모델 ($2.40 / $2.40 per 1M)",
-    badge: "초대형 405B",
-  },
-  "meta.llama-3-1-8b": {
-    id: "meta.llama-3-1-8b",
-    name: "Llama 3.1 8B",
-    provider: "Meta",
-    inputPerMillionUsd: 0.22,
-    outputPerMillionUsd: 0.22,
-    description: "초저비용 경량 실시간 서빙 모델 ($0.22 / $0.22 per 1M)",
-  },
-
-  // --- Mistral AI ---
-  "mistral.mistral-large-2": {
-    id: "mistral.mistral-large-2",
-    name: "Mistral Large 2 (24.11)",
-    provider: "Mistral",
-    inputPerMillionUsd: 2.0,
-    outputPerMillionUsd: 6.0,
-    description: "128k 컨텍스트 최신 다국어·추론·코드 플래그십 ($2.00 / $6.00 per 1M)",
-    badge: "Mistral 최신",
-  },
-
-  // --- Cohere ---
-  "cohere.command-r-plus": {
-    id: "cohere.command-r-plus",
-    name: "Command R+",
-    provider: "Cohere",
+  // === OpenAI GPT 최신 프론티어 라인업 ===
+  "openai.gpt-6-1-sol": {
+    id: "openai.gpt-6-1-sol",
+    name: "GPT 6.1 Sol",
+    provider: "OpenAI",
     inputPerMillionUsd: 2.5,
     outputPerMillionUsd: 10.0,
-    description: "엔터프라이즈 RAG 검색 및 도구 호출 최적화 모델 ($2.50 / $10.00 per 1M)",
+    description: "2026 차세대 고속 자율 추론 & 멀티모달 프론티어 플래그십 ($2.50 / $10.00 per 1M)",
+    badge: "Sol 플래그십",
   },
-  "cohere.command-r": {
-    id: "cohere.command-r",
-    name: "Command R",
-    provider: "Cohere",
+  "openai.gpt-5-2-omni": {
+    id: "openai.gpt-5-2-omni",
+    name: "GPT 5.2 Omni",
+    provider: "OpenAI",
+    inputPerMillionUsd: 2.0,
+    outputPerMillionUsd: 8.0,
+    description: "전방위 실시간 음성/비전/텍스트 통합 옴니 프론티어 ($2.00 / $8.00 per 1M)",
+    badge: "멀티모달",
+  },
+  "openai.gpt-5-2-mini": {
+    id: "openai.gpt-5-2-mini",
+    name: "GPT 5.2 Mini",
+    provider: "OpenAI",
     inputPerMillionUsd: 0.15,
     outputPerMillionUsd: 0.6,
-    description: "비용 효율적인 엔터프라이즈 RAG 작업 모델 ($0.15 / $0.60 per 1M)",
+    description: "초경량·초저비용 고속 API 서비스용 모델 ($0.15 / $0.60 per 1M)",
+    badge: "초가성비",
+  },
+  "openai.gpt-5-o3": {
+    id: "openai.gpt-5-o3",
+    name: "GPT 5.0 o3 (Reasoning)",
+    provider: "OpenAI",
+    inputPerMillionUsd: 5.0,
+    outputPerMillionUsd: 20.0,
+    description: "수학·코딩·과학 복잡 추론 특화 고지능 모델 ($5.00 / $20.00 per 1M)",
+    badge: "추론 특화",
+  },
+  "openai.gpt-4o": {
+    id: "openai.gpt-4o",
+    name: "GPT-4o",
+    provider: "OpenAI",
+    inputPerMillionUsd: 2.5,
+    outputPerMillionUsd: 10.0,
+    description: "검증된 범용 고성능 멀티모달 표준 ($2.50 / $10.00 per 1M)",
+  },
+  "openai.gpt-4o-mini": {
+    id: "openai.gpt-4o-mini",
+    name: "GPT-4o mini",
+    provider: "OpenAI",
+    inputPerMillionUsd: 0.15,
+    outputPerMillionUsd: 0.6,
+    description: "경량 실시간 작업용 고효율 모델 ($0.15 / $0.60 per 1M)",
   },
 };
 

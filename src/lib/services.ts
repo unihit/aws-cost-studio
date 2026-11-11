@@ -196,7 +196,7 @@ export const SERVICES: Record<ServiceKind, ServiceMeta> = {
 export interface BedrockModelSpec {
   id: string;
   name: string;
-  provider: "Anthropic" | "Amazon" | "Meta" | "Mistral" | "Cohere";
+  provider: "Anthropic" | "OpenAI" | "Amazon" | "Meta" | "Mistral" | "Cohere";
   inputPerMillionUsd: number;
   outputPerMillionUsd: number;
   description: string;
@@ -204,15 +204,44 @@ export interface BedrockModelSpec {
 }
 
 export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
-  // --- Anthropic Claude ---
+  // --- 2026 최신 차세대 플래그십 (Claude 5.5 & GPT 6.1 Sol) ---
+  "anthropic.claude-5-5-sonnet": {
+    id: "anthropic.claude-5-5-sonnet",
+    name: "Claude 5.5 Sonnet",
+    provider: "Anthropic",
+    inputPerMillionUsd: 3.0,
+    outputPerMillionUsd: 15.0,
+    description: "2026 최신 플래그십 자율 에이전트 & 고성능 코딩 모델 ($3.00 / $15.00 per 1M)",
+    badge: "2026 최신",
+  },
+  "anthropic.claude-5-5-opus": {
+    id: "anthropic.claude-5-5-opus",
+    name: "Claude 5.5 Opus",
+    provider: "Anthropic",
+    inputPerMillionUsd: 10.0,
+    outputPerMillionUsd: 50.0,
+    description: "2026 최고 지능 복합 심층 추론 및 시스템 설계 모델 ($10.00 / $50.00 per 1M)",
+    badge: "최고 지능",
+  },
+  "openai.gpt-6-1-sol": {
+    id: "openai.gpt-6-1-sol",
+    name: "GPT 6.1 Sol",
+    provider: "OpenAI",
+    inputPerMillionUsd: 2.5,
+    outputPerMillionUsd: 10.0,
+    description: "2026 차세대 고속 자율 추론 & 멀티모달 프론티어 ($2.50 / $10.00 per 1M)",
+    badge: "Sol 플래그십",
+  },
+
+  // --- Anthropic Claude 3.7 & 3.5 ---
   "anthropic.claude-3-7-sonnet": {
     id: "anthropic.claude-3-7-sonnet",
     name: "Claude 3.7 Sonnet",
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "최신 하이브리드 추론 모델 (일반 응답 및 Extended Thinking 통합 지원 · $3 / $15)",
-    badge: "최신 플래그십",
+    description: "하이브리드 추론 모델 (표준 응답 & Extended Thinking 통합 지원 · $3 / $15)",
+    badge: "추론 지원",
   },
   "anthropic.claude-3-5-sonnet-v2": {
     id: "anthropic.claude-3-5-sonnet-v2",
@@ -220,8 +249,7 @@ export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "업그레이드된 코딩·컴퓨터 사용·도구 연동 에이전트 모델 ($3.00 / $15.00 per 1M)",
-    badge: "v2",
+    description: "코딩·컴퓨터 사용·도구 연동 에이전트 모델 ($3.00 / $15.00 per 1M)",
   },
   "anthropic.claude-3-5-sonnet": {
     id: "anthropic.claude-3-5-sonnet",
@@ -229,7 +257,7 @@ export const BEDROCK_MODELS: Record<string, BedrockModelSpec> = {
     provider: "Anthropic",
     inputPerMillionUsd: 3.0,
     outputPerMillionUsd: 15.0,
-    description: "업계 최고 성능 코딩·에이전트·복합 추론 ($3.00 / $15.00 per 1M)",
+    description: "코딩·에이전트·복합 추론 기본 모델 ($3.00 / $15.00 per 1M)",
   },
   "anthropic.claude-3-5-haiku": {
     id: "anthropic.claude-3-5-haiku",

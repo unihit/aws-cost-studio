@@ -115,7 +115,7 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
       return {
         ...base,
         kind,
-        modelId: "anthropic.claude-3-7-sonnet",
+        modelId: "anthropic.claude-5-5-sonnet",
         monthlyInputTokensM: 5,
         monthlyOutputTokensM: 1,
       };
@@ -312,7 +312,7 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         `아웃바운드 ${formatNumber(resource.dataOutGb)} GB`,
       ];
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-7-sonnet"];
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
       return [
         model.name,
         `입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M`,

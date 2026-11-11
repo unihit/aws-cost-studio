@@ -1849,8 +1849,12 @@ function BedrockFields({
 
   const providers: Array<{ label: string; models: (typeof BEDROCK_MODELS)[string][] }> = [
     {
-      label: "Anthropic (Claude 3.7 / 3.5 / 3)",
+      label: "Anthropic (Claude 5.5 / 3.7 / 3.5)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Anthropic"),
+    },
+    {
+      label: "OpenAI (GPT 6.1 Sol)",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "OpenAI"),
     },
     {
       label: "Amazon (Nova & Titan)",
@@ -1861,12 +1865,10 @@ function BedrockFields({
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Meta"),
     },
     {
-      label: "Mistral AI",
-      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Mistral"),
-    },
-    {
-      label: "Cohere",
-      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Cohere"),
+      label: "Mistral & Cohere",
+      models: Object.values(BEDROCK_MODELS).filter(
+        (m) => m.provider === "Mistral" || m.provider === "Cohere",
+      ),
     },
   ];
 

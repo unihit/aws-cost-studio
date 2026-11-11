@@ -1842,25 +1842,59 @@ function BedrockFields({
   resource: BedrockResource;
   onPatch: (values: Record<string, unknown>) => void;
 }) {
-  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-7-sonnet"];
   const factor = getRegionalFactor(resource.regionId);
   const inputRate = model.inputPerMillionUsd * factor;
   const outputRate = model.outputPerMillionUsd * factor;
 
+  const providers: Array<{ label: string; models: (typeof BEDROCK_MODELS)[string][] }> = [
+    {
+      label: "Anthropic (Claude 3.7 / 3.5 / 3)",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Anthropic"),
+    },
+    {
+      label: "Amazon (Nova & Titan)",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Amazon"),
+    },
+    {
+      label: "Meta (Llama 3.3 / 3.2 / 3.1)",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Meta"),
+    },
+    {
+      label: "Mistral AI",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Mistral"),
+    },
+    {
+      label: "Cohere",
+      models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Cohere"),
+    },
+  ];
+
   return (
     <>
       <div>
-        <SectionLabel hint={`${model.provider} 모델`}>파운데이션 모델 (Foundation Model)</SectionLabel>
-        <div className="relative">
+        <div className="flex items-center justify-between">
+          <SectionLabel hint={`${model.provider} 모델`}>파운데이션 모델 (Foundation Model)</SectionLabel>
+          {model.badge && (
+            <span className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-0.5 text-[9px] font-bold text-fuchsia-600 dark:text-fuchsia-400">
+              {model.badge}
+            </span>
+          )}
+        </div>
+        <div className="relative mt-1">
           <select
             value={resource.modelId}
             onChange={(event) => onPatch({ modelId: event.target.value })}
             className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
           >
-            {Object.values(BEDROCK_MODELS).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.provider}) · 입 ${m.inputPerMillionUsd} / 출 ${m.outputPerMillionUsd} per 1M
-              </option>
+            {providers.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} · 입 ${m.inputPerMillionUsd} / 출 ${m.outputPerMillionUsd} per 1M
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <ChevronDown
@@ -1870,7 +1904,7 @@ function BedrockFields({
         </div>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{model.description}</p>
         <p className="mt-1 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
-          단가 기준: 입력 {formatUsd(inputRate, 2)}/1M 토큰 · 출력 {formatUsd(outputRate, 2)}/1M 토큰
+          단가 기준: 입력 {formatUsd(inputRate, 3)}/1M 토큰 · 출력 {formatUsd(outputRate, 3)}/1M 토큰
           {factor !== 1 && ` (리전 계수 ${factor.toFixed(2)}배 적용됨)`}
         </p>
       </div>
@@ -1889,7 +1923,7 @@ function BedrockFields({
 
       <RangeField
         label="월간 출력 토큰 (Output Tokens)"
-        hint={`모델 생성 답변 · 약 ${(resource.monthlyOutputTokensM * 100).toFixed(0)}만 토큰`}
+        hint={`모델 생성 답변 (Extended Thinking 추론 토큰 포함) · 약 ${(resource.monthlyOutputTokensM * 100).toFixed(0)}만 토큰`}
         value={resource.monthlyOutputTokensM}
         onChange={(monthlyOutputTokensM) => onPatch({ monthlyOutputTokensM })}
         min={0}
@@ -1905,7 +1939,7 @@ function BedrockFields({
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           1M(100만) 토큰은 약 75만 영문 단어(A4 약 1,500장) 또는 150만 자의 한국어 텍스트에 해당합니다.
-          Claude 3.5 Sonnet 풀 스펙 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
+          Claude 3.7 Sonnet 또는 Amazon Nova 시리즈 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
         </p>
       </div>
     </>

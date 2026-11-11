@@ -377,7 +377,7 @@ export function calculateResource(
       return connCost + dtoCost;
     }
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-7-sonnet"];
       const factor = getRegionalFactor(resource.regionId);
       const inputCost = resource.monthlyInputTokensM * model.inputPerMillionUsd * factor;
       const outputCost = resource.monthlyOutputTokensM * model.outputPerMillionUsd * factor;
@@ -522,7 +522,7 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
     case "vpn":
       return `${resource.accelerated ? "가속 VPN" : "표준 IPsec"} · 연결 ${resource.qty}개(터널 ${resource.qty * 2}개) · ${formatNumber(resource.hours)}h · 송신 ${formatNumber(resource.dataOutGb)} GB`;
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-5-sonnet"];
+      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-3-7-sonnet"];
       return `${model.name} · 입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M · 출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M 토큰`;
     }
     case "dataTransfer":

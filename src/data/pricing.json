@@ -991,6 +991,38 @@
           "family": "Compute optimized",
           "rateCode": "WHU4CSZ7KFE7GT57.JRTCKXETXF.6YS6EN2CT7",
           "key": "c6i xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.0078,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-2.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.0156,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-2.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.0312,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-2.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.0624,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-2.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -2860,6 +2892,38 @@
           "family": "General purpose",
           "rateCode": "2XJBDRXCQP8BJ6ZV.JRTCKXETXF.6YS6EN2CT7",
           "key": "m6g large OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00816,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-1.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01632,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-1.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.03264,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-1.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.06528,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-northeast-1.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -4665,6 +4729,38 @@
           "family": "GPU instance",
           "rateCode": "8BAKEQFFHHV6VM7T.JRTCKXETXF.6YS6EN2CT7",
           "key": "g4dn 16xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00792,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-1.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01584,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-1.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.03168,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-1.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.06336,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-1.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -6534,6 +6630,38 @@
           "family": "Compute optimized",
           "rateCode": "XMTMVD5F8B5QKEXP.JRTCKXETXF.6YS6EN2CT7",
           "key": "c7g 2xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00792,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-2.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01584,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-2.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.03168,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-2.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.06336,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.ap-southeast-2.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -8403,6 +8531,38 @@
           "family": "Memory optimized",
           "rateCode": "V28PDCZQ78Z4DX72.JRTCKXETXF.6YS6EN2CT7",
           "key": "r6i 2xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00624,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.us-east-1.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01248,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.us-east-1.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.02496,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.us-east-1.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.04992,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.us-east-1.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -10272,6 +10432,38 @@
           "family": "Compute optimized",
           "rateCode": "PFW6ZXM275V56STX.JRTCKXETXF.6YS6EN2CT7",
           "key": "c6g large OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00624,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.us-west-2.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01248,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.us-west-2.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.02496,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.us-west-2.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.04992,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.us-west-2.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -12141,6 +12333,38 @@
           "family": "Compute optimized",
           "rateCode": "TBXWDDQ98RYSEAA2.JRTCKXETXF.6YS6EN2CT7",
           "key": "c7g 16xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.0072,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-central-1.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.0144,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-central-1.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.0288,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-central-1.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.0576,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-central-1.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {
@@ -14010,6 +14234,38 @@
           "family": "Memory optimized",
           "rateCode": "YNNPT329AEUBGG32.JRTCKXETXF.6YS6EN2CT7",
           "key": "r6i 12xlarge OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.nano": {
+          "price": 0.00684,
+          "vcpu": 2,
+          "mem": 0.5,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-west-1.NANO",
+          "key": "t8i nano OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.micro": {
+          "price": 0.01368,
+          "vcpu": 2,
+          "mem": 1,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-west-1.MICRO",
+          "key": "t8i micro OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.small": {
+          "price": 0.02736,
+          "vcpu": 2,
+          "mem": 2,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-west-1.SMALL",
+          "key": "t8i small OnDemand Shared Linux No License required Yes Hrs"
+        },
+        "t8i.medium": {
+          "price": 0.05472,
+          "vcpu": 2,
+          "mem": 4,
+          "family": "General purpose",
+          "rateCode": "T8I.eu-west-1.MEDIUM",
+          "key": "t8i medium OnDemand Shared Linux No License required Yes Hrs"
         }
       },
       "ebs": {

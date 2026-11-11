@@ -501,6 +501,7 @@ function SectionLabel({ children, hint }: { children: string; hint?: string }) {
 /* ---------------------------------- EC2 ---------------------------------- */
 
 const FAMILY_ORDER = [
+  "t8i",
   "t4g",
   "t3",
   "m6i",

@@ -394,6 +394,7 @@ export function getGravitonEquivalent(instanceType: string, region: RegionPricin
   const [family, size] = instanceType.split(".");
   if (!family || !size) return null;
   const map: Record<string, string[]> = {
+    t8i: ["t4g"],
     t3: ["t4g"],
     m6i: ["m7g", "m6g"],
     c6i: ["c7g", "c6g"],

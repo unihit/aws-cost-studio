@@ -11,6 +11,9 @@ import {
   X,
 } from "lucide-react";
 import type {
+  BedrockInferenceMode,
+  BedrockResource,
+  Category,
   CloudFrontResource,
   Currency,
   DynamoDbResource,
@@ -29,12 +32,12 @@ import type {
   ServiceKind,
   TgwResource,
   VpnResource,
-  BedrockResource,
 } from "../types";
 import {
   calculateFargateTaskHourly,
   calculateResource,
   ELASTICACHE_NODES,
+  getBedrockUnitRates,
   getElastiCacheHourlyRate,
   getRegion,
   getRegionalFactor,
@@ -42,8 +45,14 @@ import {
   rdsGp3FreeBaseline,
 } from "../lib/calc";
 import { formatMoney, formatNumber, formatUsd } from "../lib/format";
-import { createDefaultResource } from "../lib/resources";
-import { BEDROCK_MODELS, ENV_META, SERVICE_ORDER, SERVICES } from "../lib/services";
+import { createDefaultResource, fallbackInstanceType } from "../lib/resources";
+import {
+  BEDROCK_MODELS,
+  DEFAULT_BEDROCK_MODEL_ID,
+  ENV_META,
+  SERVICE_ORDER,
+  SERVICES,
+} from "../lib/services";
 import { Chip, NumberField, RangeField, Segmented, Stepper, Toggle, cn } from "./Primitives";
 
 interface ServiceDrawerProps {
@@ -58,6 +67,14 @@ interface ServiceDrawerProps {
   onClose: () => void;
   onSave: (resource: Resource) => void;
 }
+
+const CATALOG_CATEGORIES: { value: "all" | Category; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "compute", label: "Compute" },
+  { value: "database", label: "Database" },
+  { value: "storage", label: "Storage" },
+  { value: "network", label: "Network" },
+];
 
 export function ServiceDrawer({
   open,
@@ -74,11 +91,14 @@ export function ServiceDrawer({
   const [kind, setKind] = useState<ServiceKind | null>(null);
   const [draft, setDraft] = useState<Resource | null>(null);
   const [query, setQuery] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState<"all" | Category>("all");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
+    setCatalogCategory("all");
     if (editing) {
       setKind(editing.kind);
       setDraft({ ...editing });
@@ -99,13 +119,19 @@ export function ServiceDrawer({
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKey);
-    const focusTimer = window.setTimeout(() => closeRef.current?.focus(), 40);
+    const focusTimer = window.setTimeout(() => {
+      if (!editing && !initialKind) {
+        searchRef.current?.focus();
+      } else {
+        closeRef.current?.focus();
+      }
+    }, 40);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKey);
       window.clearTimeout(focusTimer);
     };
-  }, [open, onClose]);
+  }, [open, editing, initialKind, onClose]);
 
   const startCosts = useMemo(() => {
     const entries = SERVICE_ORDER.map((service) => [
@@ -117,14 +143,15 @@ export function ServiceDrawer({
 
   const filteredServices = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return SERVICE_ORDER;
     return SERVICE_ORDER.filter((service) => {
       const meta = SERVICES[service];
+      if (catalogCategory !== "all" && meta.category !== catalogCategory) return false;
+      if (!needle) return true;
       return `${meta.title} ${meta.eyebrow} ${meta.description} ${service}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [query]);
+  }, [query, catalogCategory]);
 
   if (!open) return null;
 
@@ -137,14 +164,29 @@ export function ServiceDrawer({
       if (!current) return current;
       const region = getRegion(pricing, regionId);
       let next = { ...current, regionId } as Resource;
-      if (next.kind === "ec2" && !region.ec2[next.instanceType]) {
-        next = { ...next, instanceType: Object.keys(region.ec2)[0] };
-      }
-      if (next.kind === "rds" && !region.rds[next.engine].instance[next.instanceType]) {
-        next = { ...next, instanceType: Object.keys(region.rds[next.engine].instance)[0] };
-      }
-      if (next.kind === "eks" && !region.ec2[next.workerInstanceType]) {
-        next = { ...next, workerInstanceType: Object.keys(region.ec2)[0] };
+      if (next.kind === "ec2") {
+        next = {
+          ...next,
+          instanceType: fallbackInstanceType(region.ec2, next.instanceType, "t4g.medium"),
+        };
+      } else if (next.kind === "rds") {
+        next = {
+          ...next,
+          instanceType: fallbackInstanceType(
+            region.rds[next.engine].instance,
+            next.instanceType,
+            "db.t4g.micro",
+          ),
+        };
+      } else if (next.kind === "eks") {
+        next = {
+          ...next,
+          workerInstanceType: fallbackInstanceType(
+            region.ec2,
+            next.workerInstanceType,
+            "m6g.large",
+          ),
+        };
       }
       return next;
     });
@@ -158,6 +200,8 @@ export function ServiceDrawer({
   const goBack = () => {
     setKind(null);
     setDraft(null);
+    setCatalogCategory("all");
+    window.setTimeout(() => searchRef.current?.focus(), 20);
   };
 
   const estimate = draft ? calculateResource(draft, pricing, purchaseOption) : 0;
@@ -290,17 +334,45 @@ export function ServiceDrawer({
                   className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-zinc-400"
                 />
                 <input
+                  ref={searchRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="EC2, ECS, Bedrock, RDS, DynamoDB, TGW, VPN 검색…"
                   aria-label="서비스 검색"
-                  className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pr-3 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
+                  className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pr-9 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white dark:placeholder:text-zinc-600"
                 />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      searchRef.current?.focus();
+                    }}
+                    aria-label="검색어 지우기"
+                    className="absolute top-1/2 right-2.5 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {CATALOG_CATEGORIES.map((item) => (
+                  <Chip
+                    key={item.value}
+                    active={catalogCategory === item.value}
+                    onClick={() => setCatalogCategory(item.value)}
+                  >
+                    {item.label}
+                  </Chip>
+                ))}
               </div>
 
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
-                  {query ? `검색 결과 ${filteredServices.length}개` : `서비스 선택 (${SERVICE_ORDER.length}종)`}
+                  {query || catalogCategory !== "all"
+                    ? `검색 결과 ${filteredServices.length}개`
+                    : `서비스 선택 (${SERVICE_ORDER.length}종)`}
                 </p>
                 <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-600">
                   <MapPin size={10} />
@@ -311,7 +383,18 @@ export function ServiceDrawer({
 
               {filteredServices.length === 0 ? (
                 <div className="mt-8 rounded-xl border border-dashed border-zinc-200 px-4 py-10 text-center text-xs text-zinc-400 dark:border-white/10 dark:text-zinc-600">
-                  검색과 일치하는 서비스가 없습니다.
+                  <p>검색과 일치하는 서비스가 없습니다.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setCatalogCategory("all");
+                      searchRef.current?.focus();
+                    }}
+                    className="mt-2 font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                  >
+                    검색 · 카테고리 필터 초기화
+                  </button>
                 </div>
               ) : (
                 <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
@@ -504,15 +587,21 @@ const FAMILY_ORDER = [
   "t8i",
   "t4g",
   "t3",
-  "m6i",
-  "m6g",
+  "m8g",
   "m7g",
-  "c6g",
-  "c6i",
+  "m6g",
+  "m7i",
+  "m6i",
+  "c8g",
   "c7g",
-  "r6g",
-  "r6i",
+  "c6g",
+  "c7i",
+  "c6i",
+  "r8g",
   "r7g",
+  "r6g",
+  "r7i",
+  "r6i",
   "g4dn",
   "g5",
 ];
@@ -573,7 +662,7 @@ function Ec2Fields({
           >
             {instances.map(([type, item]) => (
               <option key={type} value={type}>
-                {type} · {item.vcpu} vCPU · {item.mem} GiB
+                {type} · {item.vcpu} vCPU · {item.mem} GiB ({formatUsd(item.price, 4)}/hr)
               </option>
             ))}
           </select>
@@ -777,7 +866,16 @@ function RdsFields({
         <Segmented
           ariaLabel="RDS 엔진"
           value={resource.engine}
-          onChange={(next) => onPatch({ engine: next })}
+          onChange={(next) =>
+            onPatch({
+              engine: next,
+              instanceType: fallbackInstanceType(
+                region.rds[next].instance,
+                resource.instanceType,
+                "db.t4g.micro",
+              ),
+            })
+          }
           options={[
             { value: "postgres", label: isServerlessV2 ? "Aurora PostgreSQL" : "PostgreSQL" },
             { value: "mysql", label: isServerlessV2 ? "Aurora MySQL" : "MySQL" },
@@ -811,7 +909,7 @@ function RdsFields({
             >
               {instances.map(([type, item]) => (
                 <option key={type} value={type}>
-                  {type} · {item.vcpu} vCPU · {item.mem} GiB
+                  {type} · {item.vcpu} vCPU · {item.mem} GiB ({formatUsd(resource.multiAz ? item.multi : item.single, 4)}/hr)
                 </option>
               ))}
             </select>
@@ -1843,21 +1941,25 @@ function BedrockFields({
   resource: BedrockResource;
   onPatch: (values: Record<string, unknown>) => void;
 }) {
-  const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
-  const factor = getRegionalFactor(resource.regionId);
-  const inputRate = model.inputPerMillionUsd * factor;
-  const outputRate = model.outputPerMillionUsd * factor;
+  const inferenceMode: BedrockInferenceMode = resource.inferenceMode ?? "global";
+  const { model, inputRate, outputRate, modeLabel, isRegionalFallback } = getBedrockUnitRates(
+    resource.modelId || DEFAULT_BEDROCK_MODEL_ID,
+    resource.regionId,
+    inferenceMode,
+  );
 
   const providers: Array<{ label: string; models: (typeof BEDROCK_MODELS)[string][] }> = [
     {
-      label: "Anthropic (Claude 5.5)",
+      label: "Anthropic (Claude 5.5 · 4.6 · Fable)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "Anthropic"),
     },
     {
-      label: "OpenAI (GPT 6.1 Sol / Terra / Astra)",
+      label: "OpenAI (GPT-6 CRIS · gpt-oss Regional)",
       models: Object.values(BEDROCK_MODELS).filter((m) => m.provider === "OpenAI"),
     },
   ];
+
+  const supportedRegions = model.regionalRates ? Object.keys(model.regionalRates) : [];
 
   return (
     <>
@@ -1872,7 +1974,8 @@ function BedrockFields({
         </div>
         <div className="relative mt-1">
           <select
-            value={resource.modelId}
+            aria-label="Bedrock 파운데이션 모델"
+            value={model.id}
             onChange={(event) => onPatch({ modelId: event.target.value })}
             className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-white/10 dark:bg-black/20 dark:text-white"
           >
@@ -1893,10 +1996,50 @@ function BedrockFields({
         </div>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{model.description}</p>
         <p className="mt-1 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
-          단가 기준: 입력 {formatUsd(inputRate, 3)}/1M 토큰 · 출력 {formatUsd(outputRate, 3)}/1M 토큰
-          {factor !== 1 && ` (리전 계수 ${factor.toFixed(2)}배 적용됨)`}
+          적용 단가 ({modeLabel}): 입력 {formatUsd(inputRate, 3)}/1M 토큰 · 출력 {formatUsd(outputRate, 3)}/1M 토큰
         </p>
       </div>
+
+      {model.pricingScope === "cris" ? (
+        <div>
+          <SectionLabel hint="Global 1.0× vs Geo +10%">CRIS 라우팅 (Cross-Region Inference)</SectionLabel>
+          <Segmented
+            ariaLabel="Bedrock CRIS 라우팅 모드"
+            value={inferenceMode}
+            onChange={(next) => onPatch({ inferenceMode: next })}
+            options={[
+              { value: "global", label: "Global CRIS (기본 1.0×)" },
+              { value: "geo", label: "Geo CRIS (+10% 리전 경계)" },
+            ]}
+          />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "rounded-xl border px-3.5 py-3 text-xs leading-relaxed",
+            isRegionalFallback
+              ? "border-amber-500/30 bg-amber-500/[0.07] text-amber-800 dark:text-amber-200"
+              : "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-800 dark:text-emerald-200",
+          )}
+        >
+          {isRegionalFallback ? (
+            <>
+              <p className="font-semibold">
+                선택한 리전({resource.regionId})은 Open-Weight 리전별 요율표에 미지원 상태입니다.
+              </p>
+              <p className="mt-1 text-[11px] opacity-90">
+                현재 US 기본 단가(입력 {formatUsd(model.inputPerMillionUsd, 3)} / 출력{" "}
+                {formatUsd(model.outputPerMillionUsd, 3)} per 1M)로 폴백 계산됩니다. 공식 지원 리전:{" "}
+                <code className="font-mono">{supportedRegions.join(", ")}</code>
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px]">
+              <strong>{resource.regionId}</strong> 리전의 Open-Weight 공식 리전 단가가 적용되었습니다.
+            </p>
+          )}
+        </div>
+      )}
 
       <RangeField
         label="월간 입력 토큰 (Input Tokens)"
@@ -1924,11 +2067,12 @@ function BedrockFields({
 
       <div className="rounded-xl border border-zinc-200/80 bg-white p-3.5 dark:border-white/[0.07] dark:bg-white/[0.03]">
         <p className="text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
-          토큰 및 멀티 리전 팁
+          토큰 및 CRIS 라우팅 팁
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           1M(100만) 토큰은 약 75만 영문 단어(A4 약 1,500장) 또는 150만 자의 한국어 텍스트에 해당합니다.
-          Claude 5.5 Sonnet / Opus 또는 GPT 6.1 Sol 등 최신 모델을 사용할 경우 버지니아 북부(<code>us-east-1</code>)나 오리건(<code>us-west-2</code>) 리전을 지정하면 가장 저렴하고 안정적인 추론이 가능합니다.
+          Global CRIS는 전 세계 AWS 리전으로 자동 라우팅하여 기본 단가(1.0×)로 최대 처리량을 제공하며,
+          Geo CRIS는 지정 지리권역(US/EU/APAC) 내 데이터 레지던시를 보장하는 대신 +10% 할증이 적용됩니다.
         </p>
       </div>
     </>

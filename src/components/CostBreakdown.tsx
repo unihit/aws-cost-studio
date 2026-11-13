@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { AlertTriangle, PieChart as PieIcon, Receipt, ShieldCheck, Target } from "lucide-react";
+import { AlertTriangle, PieChart as PieIcon, Receipt, ShieldCheck, Target, X } from "lucide-react";
 import type {
   CostSummary,
   Currency,
@@ -270,8 +270,25 @@ export function CostBreakdown({
               }}
               className="w-20 rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-right font-mono text-xs font-bold text-zinc-900 outline-none focus:border-indigo-500 dark:border-white/10 dark:bg-black/30 dark:text-white"
             />
+            {budgetUsd > 0 && (
+              <button
+                type="button"
+                onClick={() => onBudgetUsdChange(0)}
+                aria-label="목표 예산 초기화"
+                title="예산 초기화"
+                className="grid h-5 w-5 place-items-center rounded text-zinc-400 transition hover:bg-zinc-200/70 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+              >
+                <X size={11} />
+              </button>
+            )}
           </div>
         </div>
+
+        {currency === "KRW" && budgetUsd > 0 && (
+          <p className="mt-1 text-right font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-500">
+            ≈ {formatMoney(budgetUsd, "KRW", fx)}
+          </p>
+        )}
 
         {budgetUsd > 0 && (
           <div className="mt-2">

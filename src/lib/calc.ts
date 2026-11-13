@@ -1,4 +1,5 @@
 import type {
+  BedrockInferenceMode,
   Category,
   CostLine,
   CostSummary,
@@ -9,7 +10,7 @@ import type {
   ServiceKind,
   SupportPlan,
 } from "../types";
-import { BEDROCK_MODELS, SERVICES } from "./services";
+import { resolveBedrockModel, SERVICES, type BedrockModelSpec } from "./services";
 import { formatCompact, formatNumber } from "./format";
 
 export const HOURS_PER_MONTH = 730;
@@ -202,6 +203,49 @@ export function rdsGp3FreeBaseline(storageGb: number): { freeIops: number; freeT
   return { freeIops: 3_000, freeThroughput: 125 };
 }
 
+export interface BedrockUnitRates {
+  model: BedrockModelSpec;
+  inputRate: number;
+  outputRate: number;
+  modeLabel: string;
+  isRegionalFallback: boolean;
+}
+
+export function getBedrockUnitRates(
+  modelId: string,
+  regionId: string,
+  inferenceMode: BedrockInferenceMode = "global",
+): BedrockUnitRates {
+  const model = resolveBedrockModel(modelId);
+  if (model.pricingScope === "cris") {
+    const mult = inferenceMode === "geo" ? (model.geoMultiplier ?? 1.1) : 1;
+    return {
+      model,
+      inputRate: model.inputPerMillionUsd * mult,
+      outputRate: model.outputPerMillionUsd * mult,
+      modeLabel: inferenceMode === "geo" ? "Geo CRIS (+10%)" : "Global CRIS",
+      isRegionalFallback: false,
+    };
+  }
+  const regional = model.regionalRates?.[regionId];
+  if (regional) {
+    return {
+      model,
+      inputRate: regional.input,
+      outputRate: regional.output,
+      modeLabel: `Regional (${regionId})`,
+      isRegionalFallback: false,
+    };
+  }
+  return {
+    model,
+    inputRate: model.inputPerMillionUsd,
+    outputRate: model.outputPerMillionUsd,
+    modeLabel: "US 기본 단가 폴백",
+    isRegionalFallback: true,
+  };
+}
+
 export function calculateResource(
   resource: Resource,
   pricing: PricingData,
@@ -377,11 +421,12 @@ export function calculateResource(
       return connCost + dtoCost;
     }
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
-      const factor = getRegionalFactor(resource.regionId);
-      const inputCost = resource.monthlyInputTokensM * model.inputPerMillionUsd * factor;
-      const outputCost = resource.monthlyOutputTokensM * model.outputPerMillionUsd * factor;
-      return inputCost + outputCost;
+      const { inputRate, outputRate } = getBedrockUnitRates(
+        resource.modelId,
+        resource.regionId,
+        resource.inferenceMode ?? "global",
+      );
+      return resource.monthlyInputTokensM * inputRate + resource.monthlyOutputTokensM * outputRate;
     }
     case "dataTransfer":
       return dataTransferMonthly(region, resource.gbOut);
@@ -396,8 +441,11 @@ export function getGravitonEquivalent(instanceType: string, region: RegionPricin
   const map: Record<string, string[]> = {
     t8i: ["t4g"],
     t3: ["t4g"],
+    m7i: ["m8g", "m7g", "m6g"],
     m6i: ["m7g", "m6g"],
+    c7i: ["c8g", "c7g", "c6g"],
     c6i: ["c7g", "c6g"],
+    r7i: ["r8g", "r7g", "r6g"],
     r6i: ["r7g", "r6g"],
   };
   const candidates = map[family];
@@ -419,7 +467,9 @@ export function getRdsGravitonEquivalent(
   const [, family, size] = parts;
   const map: Record<string, string[]> = {
     t3: ["t4g"],
+    m7i: ["m8g", "m7g", "m6g"],
     m6i: ["m7g", "m6g"],
+    r7i: ["r8g", "r7g", "r6g"],
     r6i: ["r7g", "r6g"],
   };
   const candidates = map[family];
@@ -523,8 +573,12 @@ export function resourceDetail(resource: Resource, pricing: PricingData): string
     case "vpn":
       return `${resource.accelerated ? "가속 VPN" : "표준 IPsec"} · 연결 ${resource.qty}개(터널 ${resource.qty * 2}개) · ${formatNumber(resource.hours)}h · 송신 ${formatNumber(resource.dataOutGb)} GB`;
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
-      return `${model.name} · 입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M · 출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M 토큰`;
+      const { model, modeLabel } = getBedrockUnitRates(
+        resource.modelId,
+        resource.regionId,
+        resource.inferenceMode ?? "global",
+      );
+      return `${model.name} · ${modeLabel} · 입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M · 출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M 토큰`;
     }
     case "dataTransfer":
       return `${formatNumber(resource.gbOut / 1024, 1)} TB /월 아웃바운드`;

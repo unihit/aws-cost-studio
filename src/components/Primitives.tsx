@@ -75,6 +75,7 @@ export function Stepper({
 /* ------------------------------ Number input ------------------------------ */
 
 interface InlineNumberProps {
+  id?: string;
   value: number;
   onChange: (value: number) => void;
   min: number;
@@ -84,7 +85,16 @@ interface InlineNumberProps {
   ariaLabel?: string;
 }
 
-function InlineNumber({ value, onChange, min, max, step, className, ariaLabel }: InlineNumberProps) {
+export function InlineNumber({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  className,
+  ariaLabel,
+}: InlineNumberProps) {
   const [text, setText] = useState(String(value));
 
   useEffect(() => {
@@ -100,6 +110,7 @@ function InlineNumber({ value, onChange, min, max, step, className, ariaLabel }:
 
   return (
     <input
+      id={id}
       aria-label={ariaLabel}
       inputMode="numeric"
       value={text}
@@ -181,6 +192,7 @@ export function RangeField({
 /* ------------------------------ Number field ------------------------------ */
 
 interface NumberFieldProps {
+  id?: string;
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -191,15 +203,15 @@ interface NumberFieldProps {
   hint?: string;
 }
 
-export function NumberField({ label, value, onChange, min, max, step, unit, hint }: NumberFieldProps) {
+export function NumberField({ id, label, value, onChange, min, max, step, unit, hint }: NumberFieldProps) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <label className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">{label}</label>
+        <label htmlFor={id} className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">{label}</label>
         {hint && <span className="text-[11px] text-zinc-500 dark:text-zinc-500">{hint}</span>}
       </div>
       <div className="flex items-center gap-2">
-        <InlineNumber value={value} onChange={onChange} min={min} max={max} step={step} ariaLabel={label} className="w-full" />
+        <InlineNumber id={id} value={value} onChange={onChange} min={min} max={max} step={step} ariaLabel={label} className="w-full" />
         {unit && <span className="shrink-0 text-xs whitespace-nowrap text-zinc-500 dark:text-zinc-500">{unit}</span>}
       </div>
     </div>

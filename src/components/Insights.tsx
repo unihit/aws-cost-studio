@@ -1,4 +1,4 @@
-import { ArrowDownRight, Sparkles, Zap } from "lucide-react";
+import { ArrowDownRight, CheckCircle2, Sparkles, Zap } from "lucide-react";
 import type { Currency } from "../types";
 import type { Insight, InsightAction, InsightTone } from "../lib/insights";
 import { formatMoney } from "../lib/format";
@@ -9,6 +9,7 @@ interface InsightsProps {
   totalSavingsUsd: number;
   currency: Currency;
   fx: number;
+  hasResources?: boolean;
   onApplyAction?: (action: InsightAction) => void;
 }
 
@@ -38,6 +39,7 @@ export function Insights({
   totalSavingsUsd,
   currency,
   fx,
+  hasResources = false,
   onApplyAction,
 }: InsightsProps) {
   return (
@@ -77,51 +79,77 @@ export function Insights({
         </div>
       )}
 
-      <div className="mt-2 divide-y divide-zinc-100 px-4 dark:divide-white/[0.06]">
-        {insights.map((insight) => {
-          const tone = toneStyles[insight.tone];
-          return (
-            <article key={insight.id} className="py-3.5">
-              <div className="flex items-start gap-2.5">
-                <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", tone.dot)} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-xs leading-snug font-semibold text-zinc-800 dark:text-zinc-200">
-                      {insight.title}
-                    </h3>
-                    {insight.savingsUsd > 0 && (
-                      <span
+      {insights.length === 0 ? (
+        <div className="mx-4 my-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/60 px-4 py-5 text-center dark:border-white/10 dark:bg-white/[0.02]">
+          {hasResources ? (
+            <>
+              <CheckCircle2 size={20} className="mx-auto text-emerald-500" />
+              <p className="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                현재 구성이 이미 최적화되어 있습니다
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
+                Graviton · Arm64 · Valkey · 약정 할인 등 즉시 절감 가능한 항목이 모두 반영된 상태입니다.
+              </p>
+            </>
+          ) : (
+            <>
+              <Sparkles size={18} className="mx-auto text-amber-500" />
+              <p className="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                리소스를 추가하면 절감 기회를 찾아드립니다
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
+                Graviton 전환, 약정 할인, S3 수명 주기, NAT 트래픽을 분석해 월별 절감 가능액을 자동으로 계산합니다.
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mt-2 divide-y divide-zinc-100 px-4 dark:divide-white/[0.06]">
+          {insights.map((insight) => {
+            const tone = toneStyles[insight.tone];
+            return (
+              <article key={insight.id} className="py-3.5">
+                <div className="flex items-start gap-2.5">
+                  <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", tone.dot)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-xs leading-snug font-semibold text-zinc-800 dark:text-zinc-200">
+                        {insight.title}
+                      </h3>
+                      {insight.savingsUsd > 0 && (
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums",
+                            tone.badge,
+                          )}
+                        >
+                          -{formatMoney(insight.savingsUsd, currency, fx)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
+                      {insight.body}
+                    </p>
+                    {insight.action && insight.actionLabel && onApplyAction && (
+                      <button
+                        type="button"
+                        onClick={() => insight.action && onApplyAction(insight.action)}
                         className={cn(
-                          "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums",
-                          tone.badge,
+                          "mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold transition",
+                          tone.button,
                         )}
                       >
-                        -{formatMoney(insight.savingsUsd, currency, fx)}
-                      </span>
+                        <Zap size={11} />
+                        {insight.actionLabel}
+                      </button>
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
-                    {insight.body}
-                  </p>
-                  {insight.action && insight.actionLabel && onApplyAction && (
-                    <button
-                      type="button"
-                      onClick={() => insight.action && onApplyAction(insight.action)}
-                      className={cn(
-                        "mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold transition",
-                        tone.button,
-                      )}
-                    >
-                      <Zap size={11} />
-                      {insight.actionLabel}
-                    </button>
-                  )}
                 </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <p className="border-t border-zinc-100 px-5 py-3 text-[10px] leading-relaxed text-zinc-400 dark:border-white/[0.06] dark:text-zinc-600">
         Graviton · Valkey · Arm64 전환은 실제 단가 차이를 계산하며, 버튼 클릭 시 즉시 구성에 반영됩니다.

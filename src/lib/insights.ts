@@ -50,7 +50,7 @@ export function applyGravitonMigration(
         count++;
         return { ...resource, instanceType: target };
       }
-    } else if (resource.kind === "rds") {
+    } else if (resource.kind === "rds" && resource.deploymentMode !== "serverlessV2") {
       const target = getRdsGravitonEquivalent(resource.instanceType, resource.engine, region);
       if (target && target !== resource.instanceType) {
         count++;
@@ -62,9 +62,6 @@ export function applyGravitonMigration(
         count++;
         return { ...resource, workerInstanceType: target };
       }
-    } else if (resource.kind === "ecs" && resource.arch === "x86") {
-      count++;
-      return { ...resource, arch: "arm64" };
     }
     return resource;
   });
@@ -88,7 +85,7 @@ export function buildInsights(
       insights.push({
         id: "graviton-migration",
         title: `Graviton(Arm) 전환 가능 리소스 ${gravitonPreview.count}건 발견`,
-        body: "x86 인스턴스(m6i·c6i·r6i·t3)를 동급 Graviton(m7g·m6g·c7g·r7g·t4g) 실측 요율로 전환하면 성능을 높이면서 즉시 절감됩니다.",
+        body: "x86 인스턴스(m7i·m6i·c7i·c6i·r7i·r6i·t8i·t3)를 동급 Graviton(m8g·m7g·m6g·c8g·c7g·r8g·r7g·t4g) 실측 요율로 전환하면 성능을 높이면서 즉시 절감됩니다.",
         savingsUsd: diff,
         tone: "emerald",
         actionLabel: "원클릭 Graviton 전환",
@@ -106,7 +103,7 @@ export function buildInsights(
       insights.push({
         id: "compute-sp-1yr",
         title: "1년 약정(Savings Plans · RI) 전환 시 고정비 절감",
-        body: "상시 가동되는 EC2 · RDS · ElastiCache · EKS 워커에 1년 No-Upfront 약정을 적용했을 때의 실측 절감액입니다.",
+        body: "상시 가동되는 EC2 · ECS(Fargate) · RDS · ElastiCache · EKS 워커에 1년 No-Upfront 약정을 적용했을 때의 실측 절감액입니다.",
         savingsUsd: spSavings,
         tone: "indigo",
         actionLabel: "1년 약정 요율 적용",
@@ -249,19 +246,20 @@ export function buildInsights(
   }
 
   // 7. NAT Gateway VPC Endpoint
-  const natDataGb = resources.reduce(
-    (total, r) => total + (r.kind === "nat" ? r.dataGb : 0),
-    0,
+  const natResources = resources.filter(
+    (r): r is Extract<Resource, { kind: "nat" }> => r.kind === "nat",
   );
+  const natDataGb = natResources.reduce((total, r) => total + r.dataGb, 0);
   if (natDataGb > 1000) {
+    const natEndpointSavings = natResources.reduce(
+      (total, r) => total + r.dataGb * 0.4 * (getRegion(pricing, r.regionId).nat.perGb?.price ?? 0),
+      0,
+    );
     insights.push({
       id: "nat-endpoint",
       title: "S3 · DynamoDB Gateway 엔드포인트 활용",
       body: "NAT Gateway를 거치는 내부 AWS 트래픽을 무료 Gateway VPC 엔드포인트로 우회하면 GB당 처리 요금을 아낄 수 있습니다.",
-      savingsUsd:
-        natDataGb *
-        0.4 *
-        (getRegion(pricing, resources[0]?.regionId ?? "ap-northeast-2").nat.perGb?.price ?? 0),
+      savingsUsd: natEndpointSavings,
       tone: "emerald",
     });
   }
@@ -298,16 +296,6 @@ export function buildInsights(
       title: "소규모 VPC 간 연결은 VPC Peering으로 어태치먼트 기본료 절감",
       body: "연결 대상 VPC가 2~3개 이하이고 중앙 라우팅이 필수가 아니라면 VPC Peering(시간당 기본료 $0)으로 어태치먼트 고정비를 100% 절감할 수 있습니다.",
       savingsUsd: attachmentSavings,
-      tone: "emerald",
-    });
-  }
-
-  if (insights.length === 0) {
-    insights.push({
-      id: "start",
-      title: "리소스를 추가하면 절감 기회를 찾아드립니다",
-      body: "Graviton 전환, 약정 할인, S3 수명 주기, NAT 트래픽을 분석해 월별 절감 가능액을 자동으로 계산합니다.",
-      savingsUsd: 0,
       tone: "emerald",
     });
   }

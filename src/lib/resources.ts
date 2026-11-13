@@ -1,7 +1,13 @@
 import type { PricingData, Resource, ServiceKind } from "../types";
 import { formatCompact, formatNumber } from "./format";
-import { ELASTICACHE_NODES, getRegion, rdsGp3FreeBaseline, S3_CLASS_LABEL } from "./calc";
-import { BEDROCK_MODELS } from "./services";
+import {
+  ELASTICACHE_NODES,
+  getBedrockUnitRates,
+  getRegion,
+  rdsGp3FreeBaseline,
+  S3_CLASS_LABEL,
+} from "./calc";
+import { DEFAULT_BEDROCK_MODEL_ID } from "./services";
 import { uid } from "./presets";
 
 export function createDefaultResource(kind: ServiceKind, regionId: string): Resource {
@@ -115,7 +121,8 @@ export function createDefaultResource(kind: ServiceKind, regionId: string): Reso
       return {
         ...base,
         kind,
-        modelId: "anthropic.claude-5-5-sonnet",
+        modelId: DEFAULT_BEDROCK_MODEL_ID,
+        inferenceMode: "global",
         monthlyInputTokensM: 5,
         monthlyOutputTokensM: 1,
       };
@@ -142,6 +149,51 @@ export function setResourceQty(resource: Resource, qty: number): Resource {
   return { ...resource, qty: Math.max(1, Math.min(999, Math.round(qty))) };
 }
 
+const INSTANCE_FAMILY_FALLBACKS: Record<string, string[]> = {
+  t8i: ["t4g", "t3"],
+  t4g: ["t3", "t8i"],
+  t3: ["t4g", "t8i"],
+  m8g: ["m7g", "m6g", "m6i", "m7i"],
+  m7g: ["m8g", "m6g", "m6i", "m7i"],
+  m6g: ["m7g", "m8g", "m6i", "m7i"],
+  m7i: ["m6i", "m7g", "m8g", "m6g"],
+  m6i: ["m7i", "m7g", "m8g", "m6g"],
+  c8g: ["c7g", "c6g", "c6i", "c7i"],
+  c7g: ["c8g", "c6g", "c6i", "c7i"],
+  c6g: ["c7g", "c8g", "c6i", "c7i"],
+  c7i: ["c6i", "c7g", "c8g", "c6g"],
+  c6i: ["c7i", "c7g", "c8g", "c6g"],
+  r8g: ["r7g", "r6g", "r6i", "r7i"],
+  r7g: ["r8g", "r6g", "r6i", "r7i"],
+  r6g: ["r7g", "r8g", "r6i", "r7i"],
+  r7i: ["r6i", "r7g", "r8g", "r6g"],
+  r6i: ["r7i", "r7g", "r8g", "r6g"],
+  g5: ["g4dn"],
+  g4dn: ["g5"],
+};
+
+/** Resolve an instance type in a target region bucket, falling back across equivalent families. */
+export function fallbackInstanceType<T>(
+  bucket: Record<string, T>,
+  currentType: string,
+  preferredDefault: string,
+): string {
+  if (bucket[currentType]) return currentType;
+  const parts = currentType.split(".");
+  const hasDbPrefix = parts.length === 3 && parts[0] === "db";
+  const family = hasDbPrefix ? parts[1] : parts[0];
+  const size = hasDbPrefix ? parts[2] : parts[1];
+  if (family && size) {
+    const candidates = INSTANCE_FAMILY_FALLBACKS[family] ?? [];
+    for (const altFamily of candidates) {
+      const candidate = hasDbPrefix ? `db.${altFamily}.${size}` : `${altFamily}.${size}`;
+      if (bucket[candidate]) return candidate;
+    }
+  }
+  if (bucket[preferredDefault]) return preferredDefault;
+  return Object.keys(bucket)[0] ?? preferredDefault;
+}
+
 export function migrateResourceToRegion(
   resource: Resource,
   regionId: string,
@@ -149,17 +201,25 @@ export function migrateResourceToRegion(
 ): Resource {
   const region = getRegion(pricing, regionId);
   let next = { ...resource, regionId } as Resource;
-  if (next.kind === "ec2" && !region.ec2[next.instanceType]) {
-    next = { ...next, instanceType: Object.keys(region.ec2)[0] ?? "t4g.medium" };
-  }
-  if (next.kind === "rds" && !region.rds[next.engine].instance[next.instanceType]) {
-    next = {
-      ...next,
-      instanceType: Object.keys(region.rds[next.engine].instance)[0] ?? "db.t4g.micro",
-    };
-  }
-  if (next.kind === "eks" && !region.ec2[next.workerInstanceType]) {
-    next = { ...next, workerInstanceType: Object.keys(region.ec2)[0] ?? "m6g.large" };
+  if (next.kind === "ec2") {
+    const instanceType = fallbackInstanceType(region.ec2, next.instanceType, "t4g.medium");
+    if (instanceType !== next.instanceType) next = { ...next, instanceType };
+  } else if (next.kind === "rds") {
+    const instanceType = fallbackInstanceType(
+      region.rds[next.engine].instance,
+      next.instanceType,
+      "db.t4g.micro",
+    );
+    if (instanceType !== next.instanceType) next = { ...next, instanceType };
+  } else if (next.kind === "eks") {
+    const workerInstanceType = fallbackInstanceType(
+      region.ec2,
+      next.workerInstanceType,
+      "m6g.large",
+    );
+    if (workerInstanceType !== next.workerInstanceType) {
+      next = { ...next, workerInstanceType };
+    }
   }
   return next;
 }
@@ -312,12 +372,17 @@ export function resourceBadges(resource: Resource, pricing: PricingData): string
         `아웃바운드 ${formatNumber(resource.dataOutGb)} GB`,
       ];
     case "bedrock": {
-      const model = BEDROCK_MODELS[resource.modelId] ?? BEDROCK_MODELS["anthropic.claude-5-5-sonnet"];
+      const { model, modeLabel } = getBedrockUnitRates(
+        resource.modelId,
+        resource.regionId,
+        resource.inferenceMode ?? "global",
+      );
       return [
         model.name,
+        modeLabel,
         `입력 ${formatNumber(resource.monthlyInputTokensM, 1)}M`,
         `출력 ${formatNumber(resource.monthlyOutputTokensM, 1)}M`,
-        `${model.provider}`,
+        model.provider,
       ];
     }
     case "dataTransfer":

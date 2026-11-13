@@ -30,8 +30,8 @@ const REGIONS = [
   { id: "eu-west-1", label: "아일랜드", awsName: "EU (Ireland)", flag: "IE", short: "Ireland" },
 ];
 
-const EC2_FAMILIES = /^(t4g|t3|m6i|m6g|m7g|c6g|c6i|c7g|r6g|r6i|r7g|g4dn|g5)\./;
-const RDS_TYPES = /^db\.(t4g|t3|m6g|m6i|m7g|r6g|r6i|r7g)\.(micro|small|medium|large|xlarge|2xlarge|4xlarge)$/;
+const EC2_FAMILIES = /^(t8i|t4g|t3|m6i|m6g|m7i|m7g|m8g|c6g|c6i|c7i|c7g|c8g|r6g|r6i|r7i|r7g|r8g|g4dn|g5)\./;
+const RDS_TYPES = /^db\.(t4g|t3|m6g|m6i|m7g|m7i|m8g|r6g|r6i|r7g|r7i|r8g)\.(micro|small|medium|large|xlarge|2xlarge|4xlarge)$/;
 const TB = 1024; // GB per TB
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

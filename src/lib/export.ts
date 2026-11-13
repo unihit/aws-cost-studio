@@ -8,7 +8,7 @@ import type {
   ServiceKind,
   SupportPlan,
 } from "../types";
-import { ENV_META, PURCHASE_OPTIONS, SERVICES, SUPPORT_PLANS } from "./services";
+import { ENV_META, PURCHASE_OPTIONS, resolveBedrockModel, SERVICES, SUPPORT_PLANS } from "./services";
 import { formatMoney, formatUsd } from "./format";
 import { getRegion, resourceDetail } from "./calc";
 
@@ -33,6 +33,13 @@ const VALID_KINDS: ServiceKind[] = [
 
 const VALID_ENVS: EnvTag[] = ["prod", "stage", "dev"];
 
+function escapeMdCell(value: string | number): string {
+  return String(value ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\r/g, " ")
+    .replace(/\|/g, "\\|");
+}
+
 export function buildMarkdownReport(
   resources: Resource[],
   summary: CostSummary,
@@ -55,7 +62,7 @@ export function buildMarkdownReport(
       ? `${SERVICES[resource.kind].title} (${resource.label})`
       : SERVICES[resource.kind].title;
     const envPart = resource.env ? `[${ENV_META[resource.env].label}] ` : "";
-    return `| ${index + 1} | ${envPart}${namePart} | ${region.label} (${region.id}) | ${resourceDetail(resource, pricing)} | ${formatUsd(line?.monthlyUsd ?? 0)} |`;
+    return `| ${index + 1} | ${escapeMdCell(`${envPart}${namePart}`)} | ${escapeMdCell(`${region.label} (${region.id})`)} | ${escapeMdCell(resourceDetail(resource, pricing))} | ${escapeMdCell(formatUsd(line?.monthlyUsd ?? 0))} |`;
   });
 
   if (!rows.length) rows.push("| — | — | — | 아직 추가된 리소스가 없습니다 | $0.00 |");
@@ -112,7 +119,10 @@ export function buildMarkdownReport(
 }
 
 function escapeCsvCell(value: string | number): string {
-  const strVal = String(value ?? "");
+  let strVal = String(value ?? "");
+  if (/^[=+\-@\t\r]/.test(strVal) && !/^-?\d+(\.\d+)?$/.test(strVal)) {
+    strVal = `'${strVal}`;
+  }
   if (/[",\n\r]/.test(strVal)) {
     return `"${strVal.replace(/"/g, '""')}"`;
   }
@@ -455,7 +465,8 @@ export function parseImportedResources(raw: unknown): Resource[] {
           return {
             ...b,
             kind,
-            modelId: str(item.modelId, "anthropic.claude-5-5-sonnet"),
+            modelId: resolveBedrockModel(str(item.modelId, "")).id,
+            inferenceMode: item.inferenceMode === "geo" ? "geo" : "global",
             monthlyInputTokensM: Math.max(0, num(item.monthlyInputTokensM, 5)),
             monthlyOutputTokensM: Math.max(0, num(item.monthlyOutputTokensM, 1)),
           };

@@ -176,9 +176,12 @@ export interface VpnResource extends BaseResource {
   dataOutGb: number;
 }
 
+export type BedrockInferenceMode = "global" | "geo";
+
 export interface BedrockResource extends BaseResource {
   kind: "bedrock";
   modelId: string;
+  inferenceMode?: BedrockInferenceMode;
   monthlyInputTokensM: number;
   monthlyOutputTokensM: number;
 }

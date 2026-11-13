@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ClipboardCopy,
@@ -27,7 +27,7 @@ import {
   fetchLiveKrwRate,
   parseImportedResources,
 } from "../lib/export";
-import { NumberField, cn } from "./Primitives";
+import { InlineNumber, cn } from "./Primitives";
 import type { ToastTone } from "../hooks/useToast";
 
 interface ExportPanelProps {
@@ -62,6 +62,17 @@ export function ExportPanel({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [fetchingFx, setFetchingFx] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    if (!confirmReset) return;
+    const timer = window.setTimeout(() => setConfirmReset(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmReset]);
+
+  useEffect(() => {
+    if (!resources.length) setConfirmReset(false);
+  }, [resources.length]);
 
   const handleCopy = async () => {
     if (!resources.length) {
@@ -196,10 +207,13 @@ export function ExportPanel({
 
       <div className="space-y-3 px-5 pt-4 pb-5">
         <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+          <div className="mb-1.5 flex items-center justify-between">
+            <label
+              htmlFor="export-fx-input"
+              className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400"
+            >
               1 USD 기준 원화 환율
-            </span>
+            </label>
             <button
               type="button"
               disabled={fetchingFx}
@@ -210,15 +224,21 @@ export function ExportPanel({
               실시간 환율 갱신
             </button>
           </div>
-          <NumberField
-            label="KRW 기준 환율"
-            value={fx}
-            onChange={onFxChange}
-            min={800}
-            max={2500}
-            step={1}
-            unit="KRW"
-          />
+          <div className="flex items-center gap-2">
+            <InlineNumber
+              id="export-fx-input"
+              value={fx}
+              onChange={onFxChange}
+              min={800}
+              max={2500}
+              step={1}
+              ariaLabel="1 USD 기준 원화 환율"
+              className="w-full"
+            />
+            <span className="shrink-0 text-xs whitespace-nowrap text-zinc-500 dark:text-zinc-500">
+              KRW
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -290,11 +310,25 @@ export function ExportPanel({
           </p>
           <button
             type="button"
-            onClick={onReset}
-            className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-semibold text-zinc-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+            disabled={!resources.length}
+            onClick={() => {
+              if (!resources.length) return;
+              if (!confirmReset) {
+                setConfirmReset(true);
+                return;
+              }
+              setConfirmReset(false);
+              onReset();
+            }}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
+              confirmReset
+                ? "bg-rose-600 text-white hover:bg-rose-500"
+                : "text-zinc-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 dark:hover:text-rose-400",
+            )}
           >
             <RotateCcw size={11} />
-            초기화
+            {confirmReset ? "정말 초기화?" : "초기화"}
           </button>
         </div>
       </div>

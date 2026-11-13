@@ -3,12 +3,13 @@ import type { Currency, PricingData, Resource } from "../types";
 import { getRegion } from "../lib/calc";
 import { formatMoney, formatUsd } from "../lib/format";
 import { hasQty, resourceBadges } from "../lib/resources";
-import { ENV_META, SERVICES } from "../lib/services";
+import { ENV_META, SERVICE_COLORS, SERVICES } from "../lib/services";
 import { cn, Stepper } from "./Primitives";
 
 interface ResourceCardProps {
   resource: Resource;
   monthlyUsd: number;
+  totalSubtotalUsd?: number;
   pricing: PricingData;
   currency: Currency;
   fx: number;
@@ -21,6 +22,7 @@ interface ResourceCardProps {
 export function ResourceCard({
   resource,
   monthlyUsd,
+  totalSubtotalUsd = 0,
   pricing,
   currency,
   fx,
@@ -34,39 +36,48 @@ export function ResourceCard({
   const region = getRegion(pricing, resource.regionId);
   const badges = resourceBadges(resource, pricing).slice(0, 5);
   const envMeta = resource.env ? ENV_META[resource.env] : null;
+  const sharePct =
+    totalSubtotalUsd > 0 ? Math.min(100, Math.max(0, (monthlyUsd / totalSubtotalUsd) * 100)) : 0;
 
   return (
     <article className="group relative flex animate-scale-in flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-card transition duration-300 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lift dark:border-white/[0.08] dark:bg-white/[0.035] dark:shadow-none dark:hover:border-white/[0.16]">
-      <div className="flex items-start gap-3">
-        <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", meta.tile)}>
-          <Icon size={18} strokeWidth={1.9} />
-        </span>
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(resource)}
+          aria-label={`${resource.label || meta.title} 편집`}
+          className="-m-1 flex min-w-0 flex-1 items-start gap-3 rounded-xl p-1 text-left transition hover:bg-zinc-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:bg-white/[0.03]"
+        >
+          <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", meta.tile)}>
+            <Icon size={18} strokeWidth={1.9} />
+          </span>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h3 className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
-              {resource.label || meta.title}
-            </h3>
-            {envMeta && (
-              <span
-                className={cn(
-                  "shrink-0 rounded-full border px-1.5 py-px text-[9px] font-bold tracking-wider",
-                  envMeta.badgeClass,
-                )}
-              >
-                {envMeta.label}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h3 className="truncate text-sm font-bold tracking-tight text-zinc-900 dark:text-white">
+                {resource.label || meta.title}
+              </h3>
+              {envMeta && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full border px-1.5 py-px text-[9px] font-bold tracking-wider",
+                    envMeta.badgeClass,
+                  )}
+                >
+                  {envMeta.label}
+                </span>
+              )}
+              <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-1.5 py-px text-[9px] font-bold tracking-wide text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                {region.flag} {region.label}
               </span>
-            )}
-            <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-1.5 py-px text-[9px] font-bold tracking-wide text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
-              {region.flag} {region.label}
-            </span>
+            </div>
+            <p className="mt-0.5 truncate text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
+              {resource.label ? `${meta.title} · ${meta.eyebrow}` : meta.eyebrow}
+            </p>
           </div>
-          <p className="mt-0.5 truncate text-[10px] font-semibold tracking-[0.12em] text-zinc-400 uppercase dark:text-zinc-600">
-            {resource.label ? `${meta.title} · ${meta.eyebrow}` : meta.eyebrow}
-          </p>
-        </div>
+        </button>
 
-        <div className="flex shrink-0 items-center gap-0.5 opacity-60 transition focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-75 transition focus-within:opacity-100 sm:opacity-55 sm:group-hover:opacity-100">
           <button
             type="button"
             aria-label={`${resource.label || meta.title} 수정`}
@@ -113,9 +124,16 @@ export function ResourceCard({
           <p className="text-[9px] font-bold tracking-[0.14em] text-zinc-400 uppercase dark:text-zinc-600">
             월 비용
           </p>
-          <p className="mt-0.5 truncate font-mono text-lg font-semibold tracking-tight text-zinc-900 tabular-nums dark:text-white">
-            {formatMoney(monthlyUsd, currency, fx)}
-          </p>
+          <div className="mt-0.5 flex items-baseline gap-1.5">
+            <p className="truncate font-mono text-lg font-semibold tracking-tight text-zinc-900 tabular-nums dark:text-white">
+              {formatMoney(monthlyUsd, currency, fx)}
+            </p>
+            {totalSubtotalUsd > 0 && (
+              <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-zinc-500 tabular-nums dark:bg-white/[0.06] dark:text-zinc-400">
+                {sharePct.toFixed(1)}%
+              </span>
+            )}
+          </div>
           {currency === "KRW" && (
             <p className="mt-0.5 font-mono text-[10px] text-zinc-400 tabular-nums dark:text-zinc-500">
               {formatUsd(monthlyUsd)} /월
@@ -142,6 +160,16 @@ export function ResourceCard({
             사용량 기반
           </span>
         )}
+      </div>
+
+      <div className="-mx-4 mt-4 -mb-4 h-[2.5px] w-[calc(100%+2rem)] bg-zinc-100 dark:bg-white/[0.05]">
+        <div
+          className="h-full transition-all duration-300"
+          style={{
+            width: `${sharePct}%`,
+            backgroundColor: SERVICE_COLORS[resource.kind] ?? "#6366f1",
+          }}
+        />
       </div>
     </article>
   );

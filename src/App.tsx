@@ -100,8 +100,19 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<ResourceSort>("created");
   const [drawer, setDrawer] = useState<DrawerState>(CLOSED_DRAWER);
+  const [confirmReset, setConfirmReset] = useState(false);
   const { theme, toggle } = useTheme();
   const { toasts, push: pushToast, dismiss } = useToast();
+
+  useEffect(() => {
+    if (!confirmReset) return;
+    const timer = window.setTimeout(() => setConfirmReset(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmReset]);
+
+  useEffect(() => {
+    if (!resources.length) setConfirmReset(false);
+  }, [resources.length]);
 
   // Restore shared state from URL (?s=...) if present on initial load
   useEffect(() => {
@@ -408,7 +419,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f6f8] text-zinc-900 dark:bg-[#08080b] dark:text-zinc-100">
+    <div id="top" className="min-h-screen bg-[#f6f6f8] text-zinc-900 dark:bg-[#08080b] dark:text-zinc-100">
       <Header
         totalUsd={summary.monthlyUsd}
         currency={currency}
@@ -475,12 +486,30 @@ export default function App() {
                 {resources.length > 0 && (
                   <button
                     type="button"
-                    onClick={handleReset}
+                    onClick={() => {
+                      if (!confirmReset) {
+                        setConfirmReset(true);
+                        return;
+                      }
+                      setConfirmReset(false);
+                      handleReset();
+                    }}
                     title="모든 리소스 구성 초기화"
-                    className="no-print inline-flex h-8 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 text-[11px] font-semibold text-zinc-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+                    className={cn(
+                      "no-print inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition",
+                      confirmReset
+                        ? "border-rose-500 bg-rose-600 text-white hover:bg-rose-500"
+                        : "border-zinc-200 bg-white text-zinc-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-400",
+                    )}
                   >
                     <RotateCcw size={12} />
-                    <span className="hidden sm:inline">전체</span> 초기화
+                    {confirmReset ? (
+                      "정말 초기화?"
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">전체</span> 초기화
+                      </>
+                    )}
                   </button>
                 )}
                 <button
@@ -620,6 +649,7 @@ export default function App() {
                     key={resource.id}
                     resource={resource}
                     monthlyUsd={costById[resource.id] ?? 0}
+                    totalSubtotalUsd={summary.subtotalUsd}
                     pricing={pricing}
                     currency={currency}
                     fx={fx}
@@ -648,7 +678,7 @@ export default function App() {
             </div>
           </section>
 
-          <aside className="space-y-4 lg:col-span-4">
+          <aside id="breakdown" className="scroll-mt-24 space-y-4 lg:col-span-4">
             <div className="space-y-4 lg:sticky lg:top-20">
               <Suspense
                 fallback={
@@ -673,6 +703,7 @@ export default function App() {
                 totalSavingsUsd={savings}
                 currency={currency}
                 fx={fx}
+                hasResources={resources.length > 0}
                 onApplyAction={handleApplyInsightAction}
               />
               <ExportPanel
@@ -694,7 +725,12 @@ export default function App() {
         </div>
       </main>
 
-      <footer className="border-t border-zinc-200/70 py-8 dark:border-white/[0.06]">
+      <footer
+        className={cn(
+          "border-t border-zinc-200/70 pt-8 dark:border-white/[0.06]",
+          resources.length > 0 ? "pb-24 lg:pb-8" : "pb-8",
+        )}
+      >
         <div className="mx-auto flex max-w-[1440px] flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex items-center gap-2.5">
             <span className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-[10px] font-black text-white">
@@ -731,6 +767,37 @@ export default function App() {
             onSave={handleSave}
           />
         </Suspense>
+      )}
+
+      {resources.length > 0 && (
+        <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200/80 bg-white/95 px-4 py-2.5 backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#0d0d12]/95">
+          <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
+                월 합계 ({resources.length}개)
+              </p>
+              <p className="truncate font-mono text-base font-bold tracking-tight text-zinc-900 tabular-nums dark:text-white">
+                {formatMoney(summary.monthlyUsd, currency, fx)}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <a
+                href="#breakdown"
+                className="inline-flex h-9 items-center rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200"
+              >
+                요약
+              </a>
+              <button
+                type="button"
+                onClick={openCatalog}
+                className="inline-flex h-9 items-center gap-1 rounded-xl bg-indigo-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+              >
+                <Plus size={14} />
+                추가
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />

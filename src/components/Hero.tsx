@@ -178,7 +178,7 @@ export function Hero({
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">
                 {PURCHASE_OPTIONS.find((item) => item.value === purchaseOption)?.discountText} ·
-                EC2/RDS/ElastiCache/EKS 적용
+                EC2 · ECS(Fargate) · RDS · ElastiCache · EKS 적용
               </p>
             </div>
           </div>

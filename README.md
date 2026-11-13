@@ -14,9 +14,9 @@
   - `ap-northeast-2 (서울)`을 포함한 8대 핵심 리전(`서울`, `도쿄`, `싱가포르`, `시드니`, `버지니아`, `오리건`, `프랑크푸르트`, `아일랜드`)의 최신 온디맨드 단가 데이터 내장
   - **8대 글로벌 리전 실시간 비용 비교 매트릭스**: 현재 아키텍처의 리전별 총액 및 최저가 절감률을 한눈에 비교하고 원클릭 일괄 전환 지원
 - **16개 핵심 인프라 서비스 정밀 산출**:
-  - **Amazon Bedrock (Generative AI)**: Anthropic 최신 **Claude 5.5 Sonnet / 5.5 Opus / 5.5 Haiku** 및 OpenAI **GPT 6.1 Sol / GPT 6.1 Terra / GPT 6 Astra** 등 2026년 최신 플래그십 파운데이션 모델의 월간 입출력 100만(1M) 토큰 단위 정밀 요금 및 멀티 리전(서울, 버지니아 북부, 오리건) 크로스 리전 추론 비용 산출
+  - **Amazon Bedrock (Generative AI)**: Anthropic 최신 **Claude Fable 5.2 / Opus 5.5 / Sonnet 5.5 / Haiku 5.5 / Sonnet 4.6 / Haiku 4.5** 및 OpenAI **GPT-6 Astra / GPT-6.1 Sol / GPT-6.1 Terra / GPT-6 Luna / gpt-oss-120b·20b** 파운데이션 모델의 월간 입출력 100만(1M) 토큰 요금, **Global CRIS / Geo CRIS(+10%)** 라우팅 및 **Open-Weight 리전별 온디맨드 단가**(미지원 리전 US 폴백) 산출
   - **Amazon ECS (AWS Fargate)**: 서버리스 컨테이너 태스크(vCPU / Memory 규격), Arm64(Graviton 20% 할인) vs x86_64, Fargate Spot(최대 70% 할인), 20GB 초과 임시 스토리지(Ephemeral Storage), 태스크 수량 및 월간 가동 시간 정밀 계산
-  - **Amazon EC2**: 차세대 Burstable Intel(`t8i`), Graviton(`t4g`, `m6g`, `c7g`, `r7g`), Intel(`t3`, `m6i`, `c6i`), GPU(`g4dn`, `g5`) 등 최신 인스턴스 패밀리 및 월간 가동률(%) 반영
+  - **Amazon EC2**: 차세대 Burstable Intel(`t8i`), Graviton(`t4g`, `m6g`, `m7g`, `m8g`, `c6g`, `c7g`, `c8g`, `r6g`, `r7g`, `r8g`), Intel(`t3`, `m6i`, `m7i`, `c6i`, `c7i`, `r6i`, `r7i`), GPU(`g4dn`, `g5`) 등 최신 인스턴스 패밀리 및 월간 가동률(%) 반영
   - **Amazon EBS**: gp3, io2 볼륨 스토리지 요금 및 프로비저닝 IOPS / Throughput 할증 정밀 계산
   - **Amazon RDS & Aurora**: PostgreSQL / MySQL 프로비저닝 인스턴스 및 **Aurora Serverless v2 (ACU 오토스케일링)**, Multi-AZ 구성, gp3 용량 구간별(400GB 기준) 기본 IOPS/처리량 무료 제공분 통합 계산
   - **Amazon DynamoDB**: On-Demand(50% 요율 인하 반영 · WRU/RRU) 및 Provisioned(WCU/RCU) 용량 모드, 25GB 상시 무료 티어 및 테이블 스토리지 계산
